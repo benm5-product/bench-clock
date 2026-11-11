@@ -3,6 +3,9 @@ name: Build signed APK
 # Builds the Android app from the shared web app in the repo root plus android-app/.
 on:
   push:
+    # Branches must be listed: with only `tags`, GitHub skips branch pushes entirely.
+    branches: ['**']
+    tags: ['v*']
     paths:
       - 'index.html'
       - 'sw.js'
@@ -12,7 +15,6 @@ on:
       - 'OFL-*.txt'
       - 'android-app/**'
       - '.github/workflows/build-apk.yml'
-    tags: ['v*']
   workflow_dispatch:
 
 permissions:
