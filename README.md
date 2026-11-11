@@ -1,6 +1,11 @@
-# Bench Clock (offline iPhone version)
+# Bench Clock
 
-Bench Clock is a sideline substitution tracker for kids' sports teams. This version is installed from Safari onto the iPhone Home Screen. It works with no signal, and your teams are saved on the phone.
+Bench Clock is a sideline substitution tracker for kids' sports teams. It works with no signal, and your teams are saved on the phone.
+
+There are two versions, built from the same `index.html`:
+
+- **iPhone:** installed from Safari onto the Home Screen (this page).
+- **Android:** an app file (`.apk`) built by GitHub Actions. See [android-app/README.md](android-app/README.md), and [android-app/INSTALL.md](android-app/INSTALL.md) for parents.
 
 ## Put it online (one-off, free, about 10 minutes)
 
@@ -38,8 +43,10 @@ Send the same address and steps to other parents. Each phone keeps its own teams
 ## Updating the app later
 
 1. Upload the new `index.html` to the repo, replacing the old one.
-2. Open `sw.js` in GitHub, tap the pencil icon, and change `bench-clock-1` to `bench-clock-2` (then `-3`, and so on). Commit the change.
-3. Phones pick up the update after opening the app with signal. It applies the next time the app is opened. Saved teams aren't affected.
+2. Open `sw.js` in GitHub, tap the pencil icon, and raise the number in `bench-clock-2` (to `-3`, and so on). Commit the change.
+3. Open `android-app/VERSION` and raise it too (e.g. `1.3.0` → `1.4.0`), so the Android app updates as well.
+4. Phones pick up the update after opening the app with signal. It applies the next time the app is opened. Saved teams aren't affected.
+5. GitHub builds a new Android app file automatically (**Actions → Build signed APK**).
 
 ## Files
 
@@ -50,3 +57,5 @@ Send the same address and steps to other parents. Each phone keeps its own teams
 | `manifest.webmanifest` | App name, icon and colours for the Home Screen |
 | `*.png` | App icons |
 | `*.woff2` | The two fonts, bundled so they work offline (OFL licence files included) |
+| `android-app/` | The Android version. It copies the files above into the app when it's built |
+| `.github/workflows/build-apk.yml` | Builds the Android app file on GitHub |

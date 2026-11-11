@@ -1,6 +1,7 @@
-// Bench Clock offline cache. Change VERSION whenever you upload a new index.html,
+// Bench Clock offline cache. Change VERSION whenever any file below changes,
 // so phones pick up the update (it applies the next time the app is opened).
-const VERSION = 'bench-clock-1';
+// The Android build (android-app/scripts/copy-web.mjs) also uses this list to know which files to copy.
+const VERSION = 'bench-clock-2';
 const FILES = [
   './',
   './index.html',
@@ -12,7 +13,11 @@ const FILES = [
   './barlow-condensed-latin-600-normal.woff2',
   './barlow-condensed-latin-700-normal.woff2',
   './atkinson-hyperlegible-latin-400-normal.woff2',
-  './atkinson-hyperlegible-latin-700-normal.woff2'
+  './atkinson-hyperlegible-latin-700-normal.woff2',
+  './barlow-condensed-latin-ext-600-normal.woff2',
+  './barlow-condensed-latin-ext-700-normal.woff2',
+  './atkinson-hyperlegible-latin-ext-400-normal.woff2',
+  './atkinson-hyperlegible-latin-ext-700-normal.woff2'
 ];
 
 self.addEventListener('install', e => {

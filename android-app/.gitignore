@@ -1,0 +1,12 @@
+node_modules/
+dist/
+# Built from the repo root by scripts/copy-web.mjs; never edit or commit it.
+www/
+# Release signing: NEVER commit these. Back them up somewhere safe instead (see README).
+keystore/
+*.jks
+*.keystore
+*.p12
+android/keystore.properties
+# Test output
+test-results/

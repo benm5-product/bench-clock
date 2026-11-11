@@ -1,0 +1,89 @@
+apply plugin: 'com.android.application'
+
+// ---- App version: edit the VERSION file at the top of the repo (e.g. 1.2.0), nothing here. ----
+// versionCode is worked out from it (1.2.3 -> 10203) so it always goes up when the version does.
+def appVersionName = rootProject.file('../VERSION').text.trim()
+def vParts = appVersionName.tokenize('.').collect { it.toInteger() }
+while (vParts.size() < 3) vParts << 0
+def appVersionCode = vParts[0] * 10000 + vParts[1] * 100 + vParts[2]
+
+// ---- Release signing ----
+// Read from environment variables (GitHub Actions) or android/keystore.properties (local builds).
+// Neither the keystore nor its passwords are ever committed to git.
+def ksProps = new Properties()
+def ksPropsFile = rootProject.file('keystore.properties')
+if (ksPropsFile.exists()) ksPropsFile.withInputStream { ksProps.load(it) }
+def signingValue = { String prop, String env -> System.getenv(env) ?: ksProps.getProperty(prop) }
+def ksFile = signingValue('storeFile', 'BENCH_CLOCK_KEYSTORE_FILE')
+def hasSigning = ksFile && signingValue('storePassword', 'BENCH_CLOCK_KEYSTORE_PASSWORD') && signingValue('keyAlias', 'BENCH_CLOCK_KEY_ALIAS')
+
+android {
+    namespace = "au.benchclock.app"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "au.benchclock.app"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode appVersionCode
+        versionName appVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (hasSigning) {
+                storeFile rootProject.file(ksFile)
+                storePassword signingValue('storePassword', 'BENCH_CLOCK_KEYSTORE_PASSWORD')
+                keyAlias signingValue('keyAlias', 'BENCH_CLOCK_KEY_ALIAS')
+                keyPassword signingValue('keyPassword', 'BENCH_CLOCK_KEY_PASSWORD') ?: signingValue('storePassword', 'BENCH_CLOCK_KEYSTORE_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig hasSigning ? signingConfigs.release : null
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+// Refuse to produce an unsigned release APK: it couldn't be installed as an update.
+gradle.taskGraph.whenReady { graph ->
+    if (!hasSigning && graph.allTasks.any { it.name.toLowerCase().contains('release') && it.project == project }) {
+        throw new GradleException('Release signing is not set up. Create android/keystore.properties (see README) or set the BENCH_CLOCK_KEYSTORE_* environment variables.')
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

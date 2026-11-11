@@ -1,0 +1,123 @@
+name: Build signed APK
+
+# Builds the Android app from the shared web app in the repo root plus android-app/.
+on:
+  push:
+    paths:
+      - 'index.html'
+      - 'sw.js'
+      - 'manifest.webmanifest'
+      - '*.png'
+      - '*.woff2'
+      - 'OFL-*.txt'
+      - 'android-app/**'
+      - '.github/workflows/build-apk.yml'
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to attach the APK to a GitHub Release on version tags
+
+env:
+  # The original Bench Clock release key. Android only installs an update signed with the same key,
+  # so the build stops if the keystore in the secrets is a different one.
+  EXPECTED_SHA256: '57:56:8B:53:CD:74:25:91:A7:7D:69:A0:41:74:90:7B:FC:67:14:75:B7:5A:62:A1:8F:4B:99:96:53:D1:F6:B2'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: android-app/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Check the signing secrets are set
+        env:
+          KS_B64: ${{ secrets.BENCH_CLOCK_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.BENCH_CLOCK_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.BENCH_CLOCK_KEY_ALIAS }}
+        run: |
+          missing=""
+          [ -n "$KS_B64" ]   || missing="$missing BENCH_CLOCK_KEYSTORE_BASE64"
+          [ -n "$KS_PASS" ]  || missing="$missing BENCH_CLOCK_KEYSTORE_PASSWORD"
+          [ -n "$KS_ALIAS" ] || missing="$missing BENCH_CLOCK_KEY_ALIAS"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing. See 'GitHub Actions secrets' in android-app/README.md."
+            exit 1
+          fi
+
+      - name: Check the tag matches VERSION
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v="$(tr -d '[:space:]' < VERSION)"
+          if [ "${GITHUB_REF_NAME}" != "v$v" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} doesn't match android-app/VERSION ($v). Tag the commit as v$v."
+            exit 1
+          fi
+
+      - name: Restore keystore and check it is the original Bench Clock key
+        env:
+          KS_B64: ${{ secrets.BENCH_CLOCK_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.BENCH_CLOCK_KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.BENCH_CLOCK_KEY_ALIAS }}
+        run: |
+          echo "$KS_B64" | base64 --decode > "$RUNNER_TEMP/bench-clock-release.jks"
+          got="$(keytool -list -v -keystore "$RUNNER_TEMP/bench-clock-release.jks" -storepass "$KS_PASS" -alias "$KS_ALIAS" | sed -n 's/^[[:space:]]*SHA256: //p' | tr -d '[:space:]')"
+          if [ "$got" != "$EXPECTED_SHA256" ]; then
+            echo "::error::The keystore in the secrets isn't the original Bench Clock key (SHA-256 '${got:-unreadable}'). Check the secrets against keystore-base64.txt and keystore-passwords.txt."
+            exit 1
+          fi
+          echo "Keystore matches the original Bench Clock key."
+
+      - name: Install
+        run: npm ci
+
+      - name: Copy the web app from the repo root into the Android project
+        run: npm run sync
+
+      - name: Build signed release APK
+        working-directory: android-app/android
+        env:
+          BENCH_CLOCK_KEYSTORE_FILE: ${{ runner.temp }}/bench-clock-release.jks
+          BENCH_CLOCK_KEYSTORE_PASSWORD: ${{ secrets.BENCH_CLOCK_KEYSTORE_PASSWORD }}
+          BENCH_CLOCK_KEY_ALIAS: ${{ secrets.BENCH_CLOCK_KEY_ALIAS }}
+          BENCH_CLOCK_KEY_PASSWORD: ${{ secrets.BENCH_CLOCK_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Name the APK
+        run: |
+          v="$(tr -d '[:space:]' < VERSION)"
+          cp android/app/build/outputs/apk/release/app-release.apk "bench-clock-$v.apk"
+          echo "APK=android-app/bench-clock-$v.apk" >> "$GITHUB_ENV"
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          rm -f "$RUNNER_TEMP/bench-clock-release.jks"
+
+      - name: Upload APK (download it from this run's Summary page)
+        uses: actions/upload-artifact@v5
+        with:
+          name: bench-clock-${{ env.VERSION }}
+          path: ${{ env.APK }}
+          if-no-files-found: error
+
+      - name: Attach APK to a GitHub Release (version tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$APK" --title "Bench Clock $VERSION" \
+            --notes "Install or update: download $(basename "$APK") on your Android phone and open it. Updates install over the top and keep your teams." \
+            || gh release upload "$GITHUB_REF_NAME" "$APK" --clobber
