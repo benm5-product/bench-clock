@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bench Clock</title>
+<meta name="description" content="Sideline substitution tracker for kids' sports teams. Works offline.">
+<meta name="theme-color" content="#1f4d32">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bench Clock">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+@font-face{font-family:"Barlow Condensed";font-weight:600;font-display:swap;src:url(barlow-condensed-latin-600-normal.woff2) format("woff2")}
+@font-face{font-family:"Barlow Condensed";font-weight:700;font-display:swap;src:url(barlow-condensed-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:"Atkinson Hyperlegible";font-weight:400;font-display:swap;src:url(atkinson-hyperlegible-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"Atkinson Hyperlegible";font-weight:700;font-display:swap;src:url(atkinson-hyperlegible-latin-700-normal.woff2) format("woff2")}
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{overscroll-behavior:none;-webkit-text-size-adjust:100%}
+body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<style>
+/* Layout: a pitch-green scoreboard band pinned at top, then stacked sideline sections (field, bench, look-back, summary) */
+:root{
+  --bg:#eef1ec; --surface:#ffffff; --ink:#17201a; --muted:#5b665e; --line:#d6dcd5;
+  --pitch:#1f4d32; --chalk:#f4f6f1; --accent:#d99a17; --on-accent:#1a1405;
+  --num:#1f4d32; --ok:#2f7d4a; --ok-bg:#e3f1e7; --warn:#a85a14; --warn-bg:#fbeedd; --bad:#b3362c;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1410; --surface:#18211b; --ink:#e6ebe5; --muted:#9aa79d; --line:#2b362e;
+  --pitch:#163a24; --chalk:#eef2ea; --accent:#efb53a; --on-accent:#1a1405;
+  --num:#e6ebe5; --ok:#6cc58b; --ok-bg:#1c3324; --warn:#eba35f; --warn-bg:#3a2a17; --bad:#ef7a6f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1410; --surface:#18211b; --ink:#e6ebe5; --muted:#9aa79d; --line:#2b362e;
+  --pitch:#163a24; --chalk:#eef2ea; --accent:#efb53a; --on-accent:#1a1405;
+  --num:#e6ebe5; --ok:#6cc58b; --ok-bg:#1c3324; --warn:#eba35f; --warn-bg:#3a2a17; --bad:#ef7a6f; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--pitch)}
+button,input,select,textarea{font:inherit;color:inherit}
+button,label{touch-action:manipulation}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:760px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* Scoreboard */
+.board{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--pitch);color:var(--chalk);
+}
+.stripes{display:flex;height:5px}
+.stripes span{flex:1}
+.board .wrap{padding-block:8px 10px;display:grid;grid-template-columns:1fr auto;gap:6px 16px;align-items:center}
+.period{font-family:var(--f-display);font-size:15px;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.clock{font-family:var(--f-display);font-weight:700;font-size:56px;line-height:.95;font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.clock.over{color:var(--accent)}
+.sub{font-size:13px;opacity:.85;font-variant-numeric:tabular-nums}
+.ctrls{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:132px}
+.btn{border:0;border-radius:10px;padding:12px 14px;font-weight:700;font-size:15px}
+.btn-go{background:var(--accent);color:var(--on-accent);font-family:var(--f-display);font-size:22px;letter-spacing:.04em;padding:10px 14px;text-transform:uppercase}
+.btn-ghost{background:transparent;color:var(--chalk);border:1.5px solid color-mix(in srgb,var(--chalk) 45%,transparent)}
+.btn-ghost:disabled{opacity:.35;cursor:default}
+.teamwrap{position:relative;display:inline-flex;align-items:center;max-width:100%;margin-bottom:4px}
+.teamwrap::after{content:"\25BE";position:absolute;right:2px;pointer-events:none;font-size:14px;opacity:.8}
+.teamsel{appearance:none;-webkit-appearance:none;background:color-mix(in srgb,var(--chalk) 12%,transparent);color:var(--chalk);border:0;border-radius:8px;
+  font-family:var(--f-display);font-weight:700;font-size:19px;letter-spacing:.04em;text-transform:uppercase;padding:3px 22px 3px 10px;max-width:100%;text-overflow:ellipsis}
+.teamsel option{color:var(--ink);background:var(--surface);text-transform:none}
+.board .wrap>div:first-child{min-width:0}
+.boardleft{display:flex;gap:12px;align-items:center;min-width:0}
+.boardtext{min-width:0}
+.logo{width:64px;height:64px;object-fit:contain;flex:none;border-radius:12px;background:color-mix(in srgb,var(--chalk) 12%,transparent);padding:4px}
+@media (max-width:420px){.logo{width:52px;height:52px}}
+.nudge{display:flex;gap:6px}
+.nudge button{flex:1;padding:6px 0;border-radius:8px;font-size:12px;background:transparent;color:var(--chalk);border:1px solid color-mix(in srgb,var(--chalk) 30%,transparent)}
+
+main{display:flex;flex-direction:column;gap:22px;padding-block:12px 40px}
+section h2{font-family:var(--f-display);font-weight:700;font-size:22px;letter-spacing:.03em;text-transform:uppercase;margin:0;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+section h2 .count{font-family:var(--f-body);font-size:13px;font-weight:700;color:var(--muted);text-transform:none;letter-spacing:0}
+section h2 .count.warn{color:var(--warn)}
+.hint{color:var(--muted);font-size:13px;margin:4px 0 10px}
+
+/* Player chips */
+.sides{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+.sides>section{min-width:0;display:flex;flex-direction:column;gap:6px}
+.sides h2{font-size:18px;justify-content:space-between;gap:4px}
+.sides h2 .count{font-size:12px}
+.grid{display:flex;flex-direction:column;gap:5px}
+.sides .chip{min-height:0;padding:5px 8px;gap:0 7px;border-radius:10px;width:100%}
+.sides .num{font-size:21px;width:28px}
+.sides .nm{font-size:14px}
+.sides .tag{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sides .pill{font-size:10.5px;padding:0 6px}
+.sides .empty{padding:10px;font-size:13px}
+.sidehint{grid-column:1/-1;margin:0;color:var(--muted);font-size:12.5px}
+.tm-on{font-weight:700}
+.chip{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:center;text-align:left;
+  background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;min-height:66px}
+.chip:active{transform:scale(.98)}
+.chip{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.chip.dragging{opacity:.3}
+.chip.drop-target{border-color:var(--accent);border-style:solid;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+.grid.drop-col{outline:2px dashed var(--accent);outline-offset:3px;border-radius:10px}
+.ghost{position:fixed;left:0;top:0;z-index:50;pointer-events:none;margin:0;background:var(--surface);border-color:var(--accent);
+  box-shadow:0 10px 24px rgba(0,0,0,.25);transform-origin:center;opacity:.95}
+body.is-dragging{cursor:grabbing}
+.num{grid-row:span 2;font-family:var(--f-display);font-weight:700;font-size:26px;width:38px;text-align:center;
+  color:var(--num);font-variant-numeric:tabular-nums}
+.nm{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:12px;font-variant-numeric:tabular-nums;min-width:0}
+.pill{display:inline-block;border-radius:999px;padding:1px 8px;font-weight:700;font-size:11.5px}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.bench .chip{border-style:dashed;background:transparent}
+.bench .tm{color:var(--warn);font-weight:700}
+.empty{color:var(--muted);font-size:14px;padding:14px;border:1.5px dashed var(--line);border-radius:12px;text-align:center}
+
+.undo{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);
+  border-radius:10px;padding:8px 8px 8px 12px;font-size:13px}
+.undo button{background:transparent;border:1.5px solid var(--line);border-radius:8px;padding:6px 12px;font-weight:700}
+
+/* Look-back */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.scrubrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.scrubrow select{border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--surface)}
+.at{font-family:var(--f-display);font-weight:700;font-size:28px;font-variant-numeric:tabular-nums}
+.livebtn{margin-left:auto;background:transparent;border:1.5px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700}
+.livebtn.on{border-color:var(--ok);color:var(--ok)}
+input[type=range]{width:100%;accent-color:var(--accent);margin:12px 0 6px}
+.offlist{display:flex;flex-wrap:wrap;gap:6px}
+.offlist span{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:4px 10px;font-weight:700;font-size:13px}
+
+/* Summary */
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+td.zero{color:var(--warn);font-weight:700}
+.log{list-style:none;margin:10px 0 0;padding:0;font-size:13px;max-height:220px;overflow:auto}
+.log li{display:flex;gap:10px;padding:5px 0;border-bottom:1px solid var(--line)}
+.log b{font-variant-numeric:tabular-nums;min-width:62px;color:var(--muted)}
+
+/* Setup */
+details.card summary{font-family:var(--f-display);font-weight:700;font-size:20px;text-transform:uppercase;letter-spacing:.03em;cursor:pointer}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:12px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.form input,.form select,textarea{border:1.5px solid var(--line);border-radius:8px;padding:8px;background:var(--bg);text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink)}
+textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn-line{background:transparent;border:1.5px solid var(--line);border-radius:10px;padding:10px 14px;font-weight:700}
+.btn-solid{background:var(--pitch);color:var(--chalk);border:0;border-radius:10px;padding:10px 14px;font-weight:700}
+.btn-danger{border-color:var(--bad);color:var(--bad)}
+.brand{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
+.brand h3{margin:0;font-family:var(--f-display);font-size:18px;text-transform:uppercase;letter-spacing:.03em}
+.brandrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.logoprev{width:72px;height:72px;border:1.5px dashed var(--line);border-radius:12px;display:grid;place-items:center;font-size:11px;color:var(--muted);overflow:hidden;background:var(--bg);text-align:center}
+.logoprev img{width:100%;height:100%;object-fit:contain}
+.filebtn{position:relative;display:inline-flex;align-items:center;cursor:pointer}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;pointer-events:none}
+.filebtn:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+.colours{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.sw{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.swbox{display:flex;align-items:center;gap:4px}
+.sw input[type=color]{width:56px;height:40px;border:1.5px solid var(--line);border-radius:8px;padding:2px;background:var(--surface);cursor:pointer}
+.rm{border:0;background:transparent;font-size:18px;line-height:1;padding:4px 6px;color:var(--muted)}
+.brandmsg{font-size:12.5px;color:var(--bad);margin:0}
+.note{font-size:12.5px;color:var(--muted);margin-top:8px}
+
+@media (max-width:420px){.clock{font-size:48px}.ctrls{min-width:118px}}
+@media (prefers-reduced-motion:reduce){.chip:active{transform:none}}
+</style>
+
+<header class="board">
+  <div class="wrap">
+    <div class="boardleft">
+      <img class="logo" id="logo" alt="Club logo" hidden>
+      <div class="boardtext">
+      <div class="teamwrap"><select class="teamsel" id="teamSel" aria-label="Team"></select></div>
+      <div class="period" id="period">1st Half</div>
+      <div class="clock" id="clock">0:00</div>
+      <div class="sub" id="clockSub">of 20:00</div>
+      </div>
+    </div>
+    <div class="ctrls">
+      <button class="btn btn-go" id="goBtn">Start</button>
+      <button class="btn btn-ghost" id="nextBtn" disabled>Next half</button>
+      <div class="nudge"><button id="minus" aria-label="Clock back 10 seconds">−10s</button><button id="plus" aria-label="Clock forward 10 seconds">+10s</button></div>
+    </div>
+  </div>
+  <div class="stripes" id="stripes"><span style="background:var(--accent)"></span></div>
+</header>
+
+<main class="wrap">
+  <div class="sides">
+    <section>
+      <h2>On field <span class="count" id="onCount"></span></h2>
+      <div class="grid" id="field"></div>
+    </section>
+    <section class="bench">
+      <h2>Bench <span class="count" id="offCount"></span></h2>
+      <div class="grid" id="bench"></div>
+    </section>
+    <p class="sidehint">Tap a player to move them, or drag one onto a player in the other column to swap them. Longest on and longest off are at the top. Green means they've had a rest this half.</p>
+  </div>
+
+  <div class="undo" id="undoBar" hidden><span id="undoText"></span><button id="undoBtn">Undo</button></div>
+
+  <section>
+    <h2>Who was off at…</h2>
+    <p class="hint">Drag to any moment in a half to see who was on the bench.</p>
+    <div class="card">
+      <div class="scrubrow">
+        <select id="scrubHalf" aria-label="Period"></select>
+        <span class="at" id="scrubAt">0:00</span>
+        <button class="livebtn on" id="liveBtn">Live</button>
+      </div>
+      <input type="range" id="scrub" min="0" max="0" step="1" value="0" aria-label="Time in period">
+      <div class="offlist" id="scrubList"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Time off by player</h2>
+    <p class="hint">Minutes:seconds spent off in each period. Orange dashes are players with no rest yet.</p>
+    <div class="card">
+      <div class="tablewrap"><table id="summary"></table></div>
+      <ul class="log" id="log"></ul>
+    </div>
+  </section>
+
+  <details class="card" id="setup">
+    <summary>Team &amp; game setup</summary>
+    <div class="form">
+      <label style="grid-column:1/-1">Team name<input id="teamName" type="text" maxlength="40" autocomplete="off"></label>
+      <label>Period length (min)<input id="cfgLen" type="number" min="1" max="60" inputmode="numeric"></label>
+      <label>Periods<select id="cfgPeriods"><option value="2">2 halves</option><option value="4">4 quarters</option></select></label>
+      <label>Players on field<input id="cfgOn" type="number" min="1" max="30" inputmode="numeric"></label>
+    </div>
+    <textarea id="roster" aria-label="Squad list" spellcheck="false"></textarea>
+    <p class="note" id="rosterNote">One player per line: number then name, e.g. “7 Mia”.</p>
+    <div class="row">
+      <button class="btn-solid" id="applyBtn">Save setup</button>
+      <button class="btn-line btn-danger" id="resetBtn">New game</button>
+      <button class="btn-line" id="addTeamBtn">Add a team</button>
+      <button class="btn-line btn-danger" id="delTeamBtn">Delete this team</button>
+    </div>
+    <div class="brand">
+      <h3>Club logo &amp; colours</h3>
+      <div class="brandrow">
+        <div class="logoprev" id="logoPrev">No logo</div>
+        <label class="btn-line filebtn">Upload logo<input class="vh" type="file" id="logoFile" accept="image/*"></label>
+        <button class="btn-line" id="logoRemove">Remove logo</button>
+      </div>
+      <p class="brandmsg" id="brandMsg" hidden></p>
+      <div class="colours">
+        <label class="sw">Primary<span class="swbox"><input type="color" id="colPrimary"></span></label>
+        <div class="colours" id="secList"></div>
+        <button class="btn-line" id="secAdd">Add secondary</button>
+      </div>
+      <div class="row" style="margin:0"><button class="btn-line" id="brandReset">Use default colours</button></div>
+      <p class="note" style="margin:0">Primary colours the scoreboard. The first secondary is used for the main button and highlights. Secondaries also show as stripes under the scoreboard. Up to 3 secondaries.</p>
+    </div>
+    <div class="brand">
+      <h3>Backup &amp; move teams</h3>
+      <p class="note" style="margin:0">Keep a copy of all your teams, or move them to another phone.</p>
+      <div class="row" style="margin:0">
+        <button class="btn-line" id="exportFile" hidden>Export file</button>
+        <button class="btn-line" id="copyBackup">Copy backup</button>
+        <label class="btn-line filebtn">Import file<input class="vh" type="file" id="importFile" accept=".json,application/json,text/plain"></label>
+        <button class="btn-line" id="pasteToggle">Paste backup</button>
+      </div>
+      <div id="pasteBox" hidden>
+        <textarea id="pasteText" aria-label="Backup text" placeholder="Paste a Bench Clock backup here" spellcheck="false" style="min-height:90px"></textarea>
+        <div class="row"><button class="btn-solid" id="pasteGo">Check backup</button></div>
+      </div>
+      <div class="row" style="margin:0"><button class="btn-line btn-danger" id="importConfirm" hidden></button></div>
+      <p class="note" id="backupMsg" role="status" style="margin:0"></p>
+    </div>
+    <p class="note">Each team keeps its own squad, settings and game. Switch teams from the name at the top.</p>
+    <p class="note" id="saveStatus">Saved on this phone.</p>
+  </details>
+</main>
+
+<script>
+(function(){
+const KEY='bench-clock-v1';
+const $=id=>document.getElementById(id);
+const fmt=ms=>{ms=Math.max(0,Math.floor(ms/1000));return Math.floor(ms/60)+':'+String(ms%60).padStart(2,'0')};
+const ORD=['1st','2nd','3rd','4th'];
+
+const EXAMPLE=[[3,'Mia'],[5,'Jack'],[7,'Ava'],[8,'Leo'],[10,'Isla'],[11,'Noah'],[12,'Zara'],[14,'Oscar'],[21,'Ruby']];
+function freshState(players,cfg){
+  return {cfg:cfg||{len:20,periods:2,onField:7},
+    players:(players||EXAMPLE.map(([n,name],i)=>({id:'p'+i,num:n,name}))).map((p,i,a)=>({...p,on:i<(cfg?cfg.onField:7)})),
+    example:!players, p:0, acc:0, runStart:null, halfEnd:[], events:[], finished:false};
+}
+const KEY2='bench-clock-teams-v1';
+const uid=()=>'t'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function newTeam(name,state){return {id:uid(),name,state:state||freshState()}}
+function wrap(x){
+  if(x&&Array.isArray(x.teams)&&x.teams.length) return x;
+  const t=newTeam('My team',x&&x.players?x:null);
+  return {teams:[t],cur:t.id,updatedAt:(x&&x.updatedAt)||0};
+}
+let T=null;
+try{T=JSON.parse(localStorage.getItem(KEY2)||'null')}catch(e){}
+if(!T){let old=null;try{old=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){} T=wrap(old)} else T=wrap(T);
+let S;
+const curTeam=()=>T.teams.find(t=>t.id===T.cur)||T.teams[0];
+function useTeam(){const t=curTeam();T.cur=t.id;S=t.state}
+useTeam();
+let ref=null, pending=null;
+const OK_MSG='Saved to your Claude account, so your teams stay between visits.';
+function save(){
+  T.updatedAt=Date.now();
+  try{localStorage.setItem(KEY2,JSON.stringify(T))}catch(e){}
+  if(ref){clearTimeout(pending);pending=setTimeout(()=>{
+    ref.set({json:JSON.stringify(T),updatedAt:T.updatedAt}).then(()=>setStatus(OK_MSG),()=>setStatus('Couldn’t reach your account just now. Changes are kept on this screen and will save on the next change.'));
+  },400)}
+}
+function setStatus(t){const el=document.getElementById('saveStatus');if(el) el.textContent=t}
+function resetView(){scrub.h=S.p;scrub.live=true;scrub.t=0;lastAction=null}
+async function connect(){
+  let persisted=false;
+  try{if(navigator.storage&&navigator.storage.persist) persisted=await navigator.storage.persist()}catch(e){}
+  setStatus('Saved on this phone. Use Export file now and then to keep a backup.');
+}
+
+/* ---------- club branding ---------- */
+const DEF_BRAND={primary:'#1f4d32',secondary:['#d99a17'],logo:null};
+const brandOf=t=>t.brand||DEF_BRAND;
+function hexRgb(h){h=String(h||'').replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');const n=parseInt(h,16);return isNaN(n)?[0,0,0]:[n>>16&255,n>>8&255,n&255]}
+function lum(h){return hexRgb(h).map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)}).reduce((a,v,i)=>a+v*[.2126,.7152,.0722][i],0)}
+const contrast=(a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
+const onColour=c=>contrast(c,'#ffffff')>=contrast(c,'#141414')?'#ffffff':'#141414';
+function applyBrand(){
+  const t=curTeam(), b=brandOf(t);
+  let el=document.getElementById('brandStyle');
+  if(!el){el=document.createElement('style');el.id='brandStyle';document.body.appendChild(el)}
+  if(!t.brand){el.textContent=''}
+  else{
+    const P=b.primary, A=b.secondary[0]||P;
+    const base=`--pitch:${P};--chalk:${onColour(P)};--accent:${A};--on-accent:${onColour(A)};`;
+    const nl=contrast(P,'#ffffff')>=3?P:'#17201a', nd=contrast(P,'#18211b')>=3?P:'#e6ebe5';
+    el.textContent=`:root{${base}--num:${nl}}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${base}--num:${nd}}}
+:root[data-theme="dark"]{${base}--num:${nd}}`;
+  }
+  const st=b.secondary.length?b.secondary:[b.primary];
+  $('stripes').innerHTML=t.brand?st.map(c=>`<span style="background:${c}"></span>`).join(''):'<span style="background:var(--accent)"></span>';
+  const tc=document.querySelector('meta[name="theme-color"]'); if(tc) tc.content=t.brand?b.primary:'#1f4d32';
+  const lg=$('logo'); if(b.logo){lg.src=b.logo;lg.hidden=false}else{lg.hidden=true;lg.removeAttribute('src')}
+}
+function editBrand(){const t=curTeam();if(!t.brand)t.brand=JSON.parse(JSON.stringify(DEF_BRAND));return t.brand}
+function fillBrand(){
+  const b=brandOf(curTeam());
+  $('colPrimary').value=b.primary;
+  $('secList').innerHTML=b.secondary.map((c,i)=>`<label class="sw">Secondary ${i+1}<span class="swbox"><input type="color" data-sec="${i}" value="${c}"><button type="button" class="rm" data-rm="${i}" aria-label="Remove secondary ${i+1}">×</button></span></label>`).join('');
+  $('secAdd').hidden=b.secondary.length>=3;
+  $('logoPrev').innerHTML=b.logo?`<img src="${b.logo}" alt="Club logo">`:'No logo';
+  $('logoRemove').hidden=!b.logo;
+}
+function brandMsg(t){const m=$('brandMsg');m.textContent=t||'';m.hidden=!t}
+$('colPrimary').addEventListener('input',e=>{editBrand().primary=e.target.value;applyBrand()});
+$('colPrimary').addEventListener('change',()=>save());
+$('secList').addEventListener('input',e=>{const i=e.target.dataset.sec;if(i==null)return;editBrand().secondary[+i]=e.target.value;applyBrand()});
+$('secList').addEventListener('change',()=>save());
+$('secList').addEventListener('click',e=>{const i=e.target.dataset&&e.target.dataset.rm;if(i==null)return;e.preventDefault();editBrand().secondary.splice(+i,1);applyBrand();fillBrand();save()});
+$('secAdd').addEventListener('click',()=>{const b=editBrand();if(b.secondary.length>=3)return;b.secondary.push(['#d99a17','#ffffff','#c8102e'][b.secondary.length]||'#ffffff');applyBrand();fillBrand();save()});
+$('brandReset').addEventListener('click',()=>{const t=curTeam();const logo=t.brand&&t.brand.logo;t.brand=logo?{...JSON.parse(JSON.stringify(DEF_BRAND)),logo}:undefined;if(!t.brand)delete t.brand;applyBrand();fillBrand();save()});
+$('logoRemove').addEventListener('click',()=>{editBrand().logo=null;applyBrand();fillBrand();save()});
+$('logoFile').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0]; e.target.value=''; if(!f) return;
+  brandMsg('');
+  const url=URL.createObjectURL(f), img=new Image();
+  img.onload=()=>{
+    const fit=max=>{const k=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*k));c.height=Math.max(1,Math.round(img.height*k));c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c};
+    let d=fit(160).toDataURL('image/png');
+    if(d.length>70000) d=fit(112).toDataURL('image/png');
+    if(d.length>70000){const c=fit(160),x=c.getContext('2d');x.globalCompositeOperation='destination-over';x.fillStyle='#ffffff';x.fillRect(0,0,c.width,c.height);d=c.toDataURL('image/jpeg',.85)}
+    URL.revokeObjectURL(url);
+    editBrand().logo=d; applyBrand(); fillBrand(); save();
+  };
+  img.onerror=()=>{URL.revokeObjectURL(url);brandMsg('That file couldn\u2019t be read as an image. Try a PNG or JPG.')};
+  img.src=url;
+});
+
+/* ---------- backup ---------- */
+const IS_PWA=true;
+const backupJSON=()=>JSON.stringify({app:'bench-clock',version:1,exportedAt:new Date().toISOString(),data:T});
+const bmsg=t=>{$('backupMsg').textContent=t};
+const teamWord=n=>n+(n===1?' team':' teams');
+let pendingImport=null, impArmed=null;
+if(IS_PWA) $('exportFile').hidden=false;
+$('copyBackup').addEventListener('click',()=>{
+  const j=backupJSON();
+  const fallback=()=>{$('pasteBox').hidden=false;const ta=$('pasteText');ta.value=j;ta.focus();ta.select();bmsg('Couldn\u2019t copy automatically. The backup is selected in the box, so copy it from there.')};
+  try{navigator.clipboard.writeText(j).then(()=>bmsg('Backup copied ('+teamWord(T.teams.length)+'). In the other copy of Bench Clock, open setup, tap Paste backup and paste it.'),fallback)}catch(e){fallback()}
+});
+$('exportFile').addEventListener('click',async()=>{
+  const name='bench-clock-teams-'+new Date().toISOString().slice(0,10)+'.json';
+  const blob=new Blob([backupJSON()],{type:'application/json'});
+  try{
+    const f=new File([blob],name,{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:'Bench Clock teams'});bmsg('Backup shared. Choose Save to Files to keep it.');return}
+  }catch(e){if(e&&e.name==='AbortError')return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);bmsg('Backup file saved.');
+});
+$('pasteToggle').addEventListener('click',()=>{const b=$('pasteBox');b.hidden=!b.hidden;if(!b.hidden)$('pasteText').focus()});
+$('pasteGo').addEventListener('click',()=>stageImport($('pasteText').value));
+$('importFile').addEventListener('change',e=>{
+  const f=e.target.files&&e.target.files[0];e.target.value='';if(!f)return;
+  const r=new FileReader();r.onload=()=>stageImport(String(r.result||''));r.onerror=()=>bmsg('That file couldn\u2019t be read.');r.readAsText(f);
+});
+function stageImport(text){
+  pendingImport=null;$('importConfirm').hidden=true;
+  let o;try{o=JSON.parse(String(text).trim())}catch(e){bmsg('That isn\u2019t a Bench Clock backup. Copy the whole backup and try again.');return}
+  const R=wrap(o&&o.data?o.data:o);
+  R.teams=R.teams.filter(t=>t&&t.state&&Array.isArray(t.state.players));
+  if(!R.teams.length){bmsg('No teams found in that backup.');return}
+  if(!R.teams.some(t=>t.id===R.cur)) R.cur=R.teams[0].id;
+  pendingImport=R;
+  const b=$('importConfirm');b.hidden=false;b.textContent='Replace my '+teamWord(T.teams.length)+' with '+teamWord(R.teams.length)+' from backup';
+  bmsg('Backup contains: '+R.teams.map(t=>t.name||'Unnamed team').join(', ')+'.');
+}
+$('importConfirm').addEventListener('click',()=>{
+  const b=$('importConfirm');if(!pendingImport)return;
+  if(!impArmed){b.dataset.label=b.textContent;b.textContent='Tap again to replace';impArmed=setTimeout(()=>{impArmed=null;b.textContent=b.dataset.label},3000);return}
+  clearTimeout(impArmed);impArmed=null;
+  const n=pendingImport.teams.length;T=pendingImport;pendingImport=null;b.hidden=true;
+  $('pasteText').value='';$('pasteBox').hidden=true;
+  useTeam();resetView();save();renderAll();fillSetup();bmsg('Restored '+teamWord(n)+'.');
+});
+
+/* ---------- teams ---------- */
+function renderTeams(){
+  const sel=$('teamSel');
+  sel.innerHTML=T.teams.map(t=>`<option value="${t.id}">${esc(t.name||'Unnamed team')}</option>`).join('')+'<option value="__new">+ Add a team…</option>';
+  sel.value=T.cur;
+  $('delTeamBtn').disabled=T.teams.length<2;
+  $('delTeamBtn').style.opacity=T.teams.length<2?.4:1;
+}
+function switchTo(id){T.cur=id;useTeam();resetView();save();renderAll();fillSetup()}
+function addTeam(){
+  const t=newTeam('Team '+(T.teams.length+1),freshState([],{...S.cfg}));
+  if(curTeam().brand) t.brand=JSON.parse(JSON.stringify(curTeam().brand));
+  T.teams.push(t); switchTo(t.id);
+  $('setup').open=true; const n=$('teamName'); n.focus(); n.select();
+  $('setup').scrollIntoView({block:'start'});
+}
+$('teamSel').addEventListener('change',e=>{const v=e.target.value; if(v==='__new') addTeam(); else switchTo(v)});
+$('addTeamBtn').addEventListener('click',addTeam);
+let delArmed=null;
+$('delTeamBtn').addEventListener('click',()=>{
+  const b=$('delTeamBtn'); if(T.teams.length<2) return;
+  if(!delArmed){b.textContent='Tap again to delete '+(curTeam().name||'this team');delArmed=setTimeout(()=>{delArmed=null;b.textContent='Delete this team'},3000);return}
+  clearTimeout(delArmed);delArmed=null;b.textContent='Delete this team';
+  T.teams=T.teams.filter(t=>t.id!==T.cur); switchTo(T.teams[0].id);
+});
+
+const unit=()=>S.cfg.periods==4?'Quarter':'Half';
+const pname=h=>ORD[h]+' '+unit();
+const short=h=>(S.cfg.periods==4?'Q':'H')+(h+1);
+const now=()=>S.acc+(S.runStart?Date.now()-S.runStart:0);
+const endOf=h=>h===S.p?now():(S.halfEnd[h]??0);
+const P=id=>S.players.find(p=>p.id===id);
+
+function intervals(pid,h){
+  const out=[];let open=null;
+  for(const e of S.events){ if(e.pid!==pid||e.h!==h)continue;
+    if(e.type==='off'){ if(open===null) open=e.t }
+    else if(open!==null){ out.push({s:open,e:e.t,open:false}); open=null } }
+  if(open!==null) out.push({s:open,e:endOf(h),open:true});
+  return out;
+}
+const restedMs=(pid,h)=>intervals(pid,h).filter(i=>!i.open).reduce((a,i)=>a+(i.e-i.s),0);
+const offMs=(pid,h)=>intervals(pid,h).reduce((a,i)=>a+(i.e-i.s),0);
+function lastOn(pid,h){let t=0;for(const e of S.events) if(e.pid===pid&&e.h===h&&e.type==='on') t=e.t;return t}
+function offSince(pid,h){const iv=intervals(pid,h).find(i=>i.open);return iv?iv.s:0}
+
+/* ---------- player lists (rebuilt on change only, timers updated in place) ---------- */
+let lastAction=null;
+function renderPlayers(){
+  const on=S.players.filter(p=>p.on), off=S.players.filter(p=>!p.on);
+  off.sort((a,b)=>offSince(a.id,S.p)-offSince(b.id,S.p)||a.num-b.num);
+  on.sort((a,b)=>lastOn(a.id,S.p)-lastOn(b.id,S.p)||a.num-b.num);
+  $('field').innerHTML=on.length?on.map(p=>chip(p,true)).join(''):(S.players.length?'<div class="empty">Nobody on the field.</div>':'<div class="empty">No players yet. Add your squad in Team &amp; game setup below.</div>');
+  $('bench').innerHTML=off.length?off.map(p=>chip(p,false)).join(''):'<div class="empty">Everyone is on the field.</div>';
+  const t=S.cfg.onField, c=on.length;
+  $('onCount').textContent=c+'/'+t+(c>t?' too many':c<t?' short':'');
+  $('onCount').className='count'+(c!==t?' warn':'');
+  $('offCount').textContent=off.length?String(off.length):'';
+  updateTimers();
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function chip(p,on){
+  return `<button class="chip" data-pid="${p.id}" aria-label="${esc(p.name)} ${on?'on field, tap to take off':'off, tap to put on'}">
+    <span class="num">${esc(p.num)}</span><span class="nm">${esc(p.name)}</span>
+    <span class="tag" data-t="${p.id}"></span></button>`;
+}
+function updateTimers(){
+  const n=now();
+  document.querySelectorAll('[data-t]').forEach(el=>{
+    const p=P(el.dataset.t); if(!p) return;
+    if(p.on){
+      const r=restedMs(p.id,S.p);
+      el.innerHTML=`<span class="tm-on">${fmt(n-lastOn(p.id,S.p))}</span> on `+(r>=1000?`<span class="pill ok">Rested</span>`:`<span class="pill warn">No rest</span>`);
+    }else{
+      const s=offSince(p.id,S.p);
+      el.innerHTML=`<span class="tm">${fmt(n-s)}</span> off · since ${fmt(s)}`;
+    }
+  });
+}
+let suppressClick=false;
+function onTap(e){
+  if(suppressClick){suppressClick=false;return}
+  const b=e.target.closest('[data-pid]'); if(!b||S.finished) return;
+  const p=P(b.dataset.pid); const t=now();
+  p.on=!p.on;
+  S.events.push({pid:p.id,h:S.p,t,type:p.on?'on':'off'});
+  lastAction=`${p.name} ${p.on?'back on':'off'} at ${fmt(t)}`;
+  save(); renderAll();
+}
+$('field').addEventListener('click',onTap);
+$('bench').addEventListener('click',onTap);
+$('undoBtn').addEventListener('click',()=>{
+  const ev=S.events[S.events.length-1]; if(!ev||ev.auto) return;
+  do{ const e=S.events.pop(); const p=P(e.pid); if(p) p.on=e.type==='off'; }
+  while(ev.g&&S.events.length&&S.events[S.events.length-1].g===ev.g);
+  lastAction=null; save(); renderAll();
+});
+
+/* ---------- drag to swap ---------- */
+function swapPlayers(aId,bId){
+  const a=P(aId), b=P(bId); if(!a||!b||a.on===b.on) return;
+  const off=a.on?a:b, on=a.on?b:a, t=now(), g='g'+Date.now();
+  off.on=false; on.on=true;
+  S.events.push({pid:off.id,h:S.p,t,type:'off',g},{pid:on.id,h:S.p,t,type:'on',g});
+  lastAction=`${on.name} on for ${off.name} at ${fmt(t)}`;
+  save(); renderAll();
+}
+function movePlayer(id){
+  const p=P(id), t=now(); p.on=!p.on;
+  S.events.push({pid:p.id,h:S.p,t,type:p.on?'on':'off'});
+  lastAction=`${p.name} ${p.on?'back on':'off'} at ${fmt(t)}`;
+  save(); renderAll();
+}
+let drag=null;
+function clearDrop(){document.querySelectorAll('.drop-target').forEach(x=>x.classList.remove('drop-target'));document.querySelectorAll('.drop-col').forEach(x=>x.classList.remove('drop-col'))}
+function startDrag(){
+  const d=drag; if(!d||d.active) return;
+  d.active=true; clearTimeout(d.timer);
+  const r=d.el.getBoundingClientRect();
+  d.dx=d.x-r.left; d.dy=d.y-r.top;
+  const g=d.el.cloneNode(true); g.classList.add('ghost'); g.removeAttribute('data-pid');
+  g.querySelectorAll('[data-t]').forEach(x=>x.removeAttribute('data-t'));
+  g.style.width=r.width+'px'; document.body.appendChild(g); d.ghost=g;
+  d.el.classList.add('dragging'); document.body.classList.add('is-dragging');
+  try{navigator.vibrate&&navigator.vibrate(15)}catch(e){}
+  moveGhost(d.x,d.y);
+}
+function moveGhost(x,y){
+  const d=drag; d.ghost.style.transform=`translate(${x-d.dx}px,${y-d.dy}px) scale(1.04)`;
+  clearDrop(); d.target=null; d.col=null;
+  const under=document.elementFromPoint(x,y); if(!under) return;
+  const chipEl=under.closest('.chip[data-pid]'), col=under.closest('#field,#bench');
+  const fromCol=d.el.closest('#field,#bench');
+  if(chipEl&&chipEl!==d.el&&chipEl.closest('#field,#bench')!==fromCol){chipEl.classList.add('drop-target');d.target=chipEl.dataset.pid}
+  else if(col&&col!==fromCol){col.classList.add('drop-col');d.col=col}
+}
+function endDrag(commit){
+  const d=drag; drag=null; if(!d) return;
+  clearTimeout(d.timer);
+  if(!d.active) return;
+  suppressClick=true; setTimeout(()=>suppressClick=false,400);
+  d.ghost&&d.ghost.remove(); d.el.classList.remove('dragging'); document.body.classList.remove('is-dragging'); clearDrop();
+  if(!commit||S.finished) return;
+  if(d.target) swapPlayers(d.id,d.target);
+  else if(d.col) movePlayer(d.id);
+}
+document.querySelector('.sides').addEventListener('pointerdown',e=>{
+  suppressClick=false;
+  const el=e.target.closest('.chip[data-pid]'); if(!el||S.finished||e.button>0) return;
+  drag={el,id:el.dataset.pid,x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,mouse:e.pointerType==='mouse',active:false,pid:e.pointerId};
+  if(!drag.mouse) drag.timer=setTimeout(startDrag,220);
+});
+window.addEventListener('pointermove',e=>{
+  const d=drag; if(!d||e.pointerId!==d.pid) return;
+  d.x=e.clientX; d.y=e.clientY;
+  const dist=Math.hypot(d.x-d.sx,d.y-d.sy);
+  if(!d.active){
+    if(d.mouse&&dist>6) startDrag();
+    else if(!d.mouse&&dist>10){clearTimeout(d.timer);drag=null}
+    return;
+  }
+  moveGhost(d.x,d.y);
+});
+window.addEventListener('pointerup',e=>{if(drag&&e.pointerId===drag.pid) endDrag(true)});
+window.addEventListener('pointercancel',()=>endDrag(false));
+document.addEventListener('touchmove',e=>{if(drag&&drag.active) e.preventDefault()},{passive:false});
+document.addEventListener('contextmenu',e=>{if(e.target.closest&&e.target.closest('.chip')) e.preventDefault()});
+function renderUndo(){
+  const ev=S.events[S.events.length-1];
+  const show=!!(lastAction&&ev&&!ev.auto);
+  $('undoBar').hidden=!show; if(show) $('undoText').textContent=lastAction;
+}
+
+/* ---------- clock ---------- */
+let wake=null;
+async function keepAwake(){try{if('wakeLock' in navigator&&!wake){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>wake=null)}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&S.runStart) keepAwake()});
+let goArmed=null;
+$('goBtn').addEventListener('click',()=>{
+  if(S.finished){
+    const g=$('goBtn');
+    if(!goArmed){g.textContent='Tap to confirm';goArmed=setTimeout(()=>{goArmed=null;renderClock()},3000);return}
+    clearTimeout(goArmed);goArmed=null;newGame();return;
+  }
+  if(S.runStart){S.acc=now();S.runStart=null}else{S.runStart=Date.now();keepAwake()}
+  save(); renderClock();
+});
+$('nextBtn').addEventListener('click',()=>{
+  if(S.runStart||S.finished) return;
+  S.halfEnd[S.p]=S.acc;
+  if(S.p>=S.cfg.periods-1){S.finished=true;lastAction=null;save();renderAll();return}
+  S.p++; S.acc=0;
+  S.players.filter(p=>!p.on).forEach(p=>S.events.push({pid:p.id,h:S.p,t:0,type:'off',auto:true}));
+  scrub.h=S.p; scrub.live=true; lastAction=null;
+  save(); renderAll();
+});
+function nudge(d){ if(S.finished) return; const n=Math.max(0,now()+d); if(S.runStart){S.runStart=Date.now();} S.acc=n; save(); renderClock(); updateTimers(); }
+$('minus').addEventListener('click',()=>nudge(-10000));
+$('plus').addEventListener('click',()=>nudge(10000));
+
+function renderClock(){
+  const n=now(), len=S.cfg.len*60000;
+  $('period').textContent=S.finished?'Full time':pname(S.p);
+  $('clock').textContent=fmt(n);
+  $('clock').classList.toggle('over',n>len);
+  $('clockSub').textContent=S.finished?'Game over':n>len?`+${fmt(n-len)} over ${S.cfg.len}:00`:`${fmt(len-n)} left of ${S.cfg.len}:00`;
+  const go=$('goBtn');
+  if(!(S.finished&&goArmed)) go.textContent=S.finished?'New game':S.runStart?'Pause':(n>0?'Resume':'Start');
+  const nb=$('nextBtn');
+  nb.textContent=S.p>=S.cfg.periods-1?'Full time':'Next '+unit().toLowerCase();
+  nb.disabled=!!S.runStart||S.finished||n===0;
+}
+
+/* ---------- look-back scrubber ---------- */
+const scrub={h:S.p,t:0,live:true};
+const slider=$('scrub');
+function renderScrubHalves(){
+  const sel=$('scrubHalf');
+  sel.innerHTML=Array.from({length:S.p+1},(_,h)=>`<option value="${h}">${pname(h)}</option>`).join('');
+  if(scrub.h>S.p) scrub.h=S.p;
+  sel.value=scrub.h;
+}
+function renderScrub(){
+  const max=Math.floor(endOf(scrub.h)/1000);
+  slider.max=max;
+  if(scrub.live) scrub.t=max;
+  scrub.t=Math.min(scrub.t,max);
+  if(document.activeElement!==slider||scrub.live) slider.value=scrub.t;
+  const tms=scrub.t*1000;
+  $('scrubAt').textContent=short(scrub.h)+' '+fmt(tms);
+  $('liveBtn').classList.toggle('on',scrub.live&&scrub.h===S.p);
+  const off=S.players.filter(p=>intervals(p.id,scrub.h).some(i=>i.s<=tms&&(tms<i.e||(i.open&&tms<=i.e))));
+  $('scrubList').innerHTML=off.length?off.map(p=>`<span>#${esc(p.num)} ${esc(p.name)}</span>`).join(''):'<p class="hint" style="margin:0">Nobody was off at this moment.</p>';
+}
+slider.addEventListener('input',()=>{scrub.t=+slider.value;scrub.live=scrub.h===S.p&&scrub.t>=+slider.max;renderScrub()});
+$('scrubHalf').addEventListener('change',e=>{scrub.h=+e.target.value;scrub.live=false;scrub.t=0;renderScrub()});
+$('liveBtn').addEventListener('click',()=>{scrub.h=S.p;scrub.live=true;renderScrubHalves();renderScrub()});
+
+/* ---------- summary + log ---------- */
+function renderSummary(){
+  const hs=Array.from({length:S.p+1},(_,h)=>h);
+  let html='<thead><tr><th>Player</th>'+hs.map(h=>`<th>${short(h)}</th>`).join('')+'<th>Total</th></tr></thead><tbody>';
+  for(const p of [...S.players].sort((a,b)=>a.num-b.num)){
+    let tot=0;
+    html+=`<tr><td>#${esc(p.num)} ${esc(p.name)}</td>`+hs.map(h=>{const m=offMs(p.id,h);tot+=m;return m>=1000?`<td>${fmt(m)}</td>`:`<td class="zero">—</td>`}).join('')+`<td><b>${tot>=1000?fmt(tot):'—'}</b></td></tr>`;
+  }
+  $('summary').innerHTML=html+'</tbody>';
+  const evs=S.events.filter(e=>!e.auto).slice().reverse();
+  $('log').innerHTML=evs.length?evs.map(e=>{const p=P(e.pid);return `<li><b>${short(e.h)} ${fmt(e.t)}</b><span>${p?esc(p.name):'?'} ${e.type==='off'?'came off':'went back on'}</span></li>`}).join(''):'<li><span class="hint" style="margin:0">Substitutions will be listed here.</span></li>';
+}
+
+/* ---------- setup ---------- */
+function fillSetup(){
+  fillBrand();
+  $('teamName').value=curTeam().name||'';
+  $('cfgLen').value=S.cfg.len; $('cfgPeriods').value=S.cfg.periods; $('cfgOn').value=S.cfg.onField;
+  $('roster').value=S.players.map(p=>p.num+' '+p.name).join('\n');
+  $('rosterNote').textContent=(S.example?'This is an example squad, replace it with yours. ':'')+'One player per line: number then name, e.g. “7 Mia”.';
+}
+function parseRoster(){
+  return $('roster').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
+    const m=l.match(/^#?(\d+)\s*[.\-–:)]?\s*(.+)$/); return m?{num:+m[1],name:m[2].trim()}:{num:0,name:l};
+  });
+}
+$('applyBtn').addEventListener('click',()=>{
+  const len=Math.max(1,Math.min(60,+$('cfgLen').value||20));
+  const periods=+$('cfgPeriods').value===4?4:2;
+  const onField=Math.max(1,Math.min(30,+$('cfgOn').value||7));
+  const rows=parseRoster();
+  const kept=[];
+  rows.forEach((r,i)=>{
+    const ex=S.players.find(p=>p.name.toLowerCase()===r.name.toLowerCase()&&!kept.includes(p));
+    if(ex){ex.num=r.num;kept.push(ex)}
+    else kept.push({id:'p'+Date.now().toString(36)+i,num:r.num,name:r.name,on:false,_new:true});
+  });
+  const started=S.events.length>0||now()>0||S.p>0;
+  kept.filter(p=>p._new).forEach(p=>{
+    delete p._new;
+    if(kept.filter(q=>q.on).length<onField&&!started) p.on=true;
+    else if(started){p.on=false;S.events.push({pid:p.id,h:S.p,t:now(),type:'off',auto:true})}
+  });
+  if(!started){ kept.forEach((p,i)=>p.on=i<onField); }
+  const ids=new Set(kept.map(p=>p.id));
+  S.events=S.events.filter(e=>ids.has(e.pid));
+  if(periods<=S.p) S.cfg.periods=S.p+1; else S.cfg.periods=periods;
+  curTeam().name=$('teamName').value.trim()||curTeam().name||'My team';
+  S.cfg.len=len; S.cfg.onField=onField; S.players=kept; S.example=false;
+  save(); renderAll(); fillSetup();
+  $('applyBtn').textContent='Saved'; setTimeout(()=>$('applyBtn').textContent='Save setup',1500);
+});
+let armed=null;
+$('resetBtn').addEventListener('click',()=>{
+  const b=$('resetBtn');
+  if(!armed){b.textContent='Tap again to clear the game';armed=setTimeout(()=>{armed=null;b.textContent='New game'},3000);return}
+  clearTimeout(armed);armed=null;b.textContent='New game';
+  newGame();
+});
+function newGame(){
+  const roster=S.players.map(({id,num,name})=>({id,num,name}));
+  const ex=S.example;
+  S=freshState(roster,{...S.cfg}); S.example=ex; curTeam().state=S;
+  scrub.h=0;scrub.live=true;lastAction=null;
+  save(); renderAll(); fillSetup();
+}
+
+/* ---------- loop ---------- */
+function renderAll(){renderTeams();applyBrand();renderClock();renderPlayers();renderUndo();renderScrubHalves();renderScrub();renderSummary()}
+renderAll(); fillSetup(); connect();
+setInterval(()=>{renderClock();if(S.runStart){updateTimers();renderScrub();renderSummary()}},500);
+})();
+</script>
+<script>
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
+</script>
+</body>
+</html>
