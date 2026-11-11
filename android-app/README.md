@@ -25,6 +25,7 @@ and isn't saved in git.
 | `assets/` + `scripts/make-icon.mjs` | The stopwatch icon and splash screen (`npm run assets` regenerates them) |
 | `../.github/workflows/build-apk.yml` | Builds the signed APK on GitHub |
 | `tests/web-smoke.mjs` | Phone-sized browser test of the Android build, with the Android plugins simulated (`npm run test:web`) |
+| `scripts/build-prototype.mjs` | Builds the claude.ai prototype page from the root `index.html` (`npm run prototype`) |
 | `tests/iphone-web.mjs` | Phone-sized browser test of the iPhone web app as GitHub Pages serves it, including offline (`npm run test:iphone`) |
 
 ## How the Android extras stay out of the web version
@@ -48,8 +49,8 @@ versions behave differently.
 3. Under **Artifacts** at the bottom of the Summary page, download `bench-clock-<version>`.
    It's a zip containing `bench-clock-<version>.apk`.
 
-For a version tag, the APK is also attached to a **Release** (the **Releases** section on the
-repository's front page). That's the easiest link to send to other parents.
+For each new version pushed to `main`, the APK is also published as a **Release**. Send parents the
+permanent link https://github.com/benm5-product/bench-clock/releases/latest/download/bench-clock.apk
 
 The workflow needs four repository secrets, set up once. See [GitHub Actions secrets](#github-actions-secrets).
 Before building, it also checks that the keystore is the original Bench Clock key (by its fingerprint),
@@ -82,16 +83,21 @@ couldn't be installed as an update.
 
 ## Releasing an update
 
-1. Make the change in the root `index.html` (it applies to the iPhone and Android versions at once).
+Updates go to the iPhone app, the Android APK and the prototype link together:
+
+1. Make the change in the root `index.html` (it applies to every version at once).
    Bump `VERSION` in the root `sw.js` as usual for the iPhone version.
 2. Open `android-app/VERSION` and raise the number, e.g. `1.3.0` → `1.4.0` (or `1.3.1` for a small fix).
    Android's internal `versionCode` is worked out from it (1.4.0 → 10400), so it always goes up.
    Each part must stay below 100.
-3. Commit and push to `main`. GitHub builds `bench-clock-1.4.0.apk` (see Artifacts above).
-4. To publish it as a Release, on GitHub: **Releases → Draft a new release → Choose a tag → type
-   `v1.4.0` → Create new tag**, then **Publish release**. The workflow attaches the APK a few minutes
-   later. The tag must match `VERSION`, or the build stops.
-5. Send parents the new APK. Installing it over the old one keeps their teams
+3. Commit and push to `main`. GitHub Pages updates the iPhone app, and the **Build signed APK**
+   workflow builds the APK and publishes a **Release** `v1.4.0` with it attached (as
+   `bench-clock-1.4.0.apk` and `bench-clock.apk`). If `VERSION` wasn't raised, no new release is made.
+4. Rebuild and republish the prototype: `npm run prototype`, then publish
+   `dist/bench-clock-prototype.html` to https://claude.ai/artifact/7ACmbZ2rKaem1VdY1qWYtB.
+5. Parents install or update from the permanent link
+   https://github.com/benm5-product/bench-clock/releases/latest/download/bench-clock.apk, which always
+   gives the newest version. Installing over the old app keeps their teams
    ([INSTALL.md](INSTALL.md#updating-to-a-new-version)).
 
 Updates install over the top only if **every** version is signed with the **same keystore**, has the

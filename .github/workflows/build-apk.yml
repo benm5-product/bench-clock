@@ -114,12 +114,35 @@ jobs:
           path: ${{ env.APK }}
           if-no-files-found: error
 
-      - name: Attach APK to a GitHub Release (version tags only)
+      # Every release carries the APK twice: bench-clock-<version>.apk, and bench-clock.apk, so
+      # https://github.com/<owner>/<repo>/releases/latest/download/bench-clock.apk always gets the newest one.
+      - name: Publish the GitHub Release for a new version (main only)
+        if: github.ref == 'refs/heads/main'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$VERSION"
+          cp "$APK" android-app/bench-clock.apk
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # Already released. Only add the fixed-name copy if an older release is missing it.
+            if ! gh release view "$tag" --json assets --jq '.assets[].name' | grep -qx bench-clock.apk; then
+              gh release upload "$tag" android-app/bench-clock.apk
+            fi
+            echo "::notice::Release $tag already exists, so no new release was made. Raise android-app/VERSION to publish an update to Android phones."
+            exit 0
+          fi
+          gh release create "$tag" "$APK" android-app/bench-clock.apk --target "$GITHUB_SHA" --latest \
+            --title "Bench Clock $VERSION" \
+            --notes "Install or update: download bench-clock.apk on your Android phone and open it. Updates install over the top and keep your teams."
+
+      - name: Attach APK to a GitHub Release (version tags made by hand)
         if: startsWith(github.ref, 'refs/tags/v')
         working-directory: .
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "$APK" --title "Bench Clock $VERSION" \
-            --notes "Install or update: download $(basename "$APK") on your Android phone and open it. Updates install over the top and keep your teams." \
-            || gh release upload "$GITHUB_REF_NAME" "$APK" --clobber
+          cp "$APK" android-app/bench-clock.apk
+          gh release create "$GITHUB_REF_NAME" "$APK" android-app/bench-clock.apk --title "Bench Clock $VERSION" \
+            --notes "Install or update: download bench-clock.apk on your Android phone and open it. Updates install over the top and keep your teams." \
+            || gh release upload "$GITHUB_REF_NAME" "$APK" android-app/bench-clock.apk --clobber
