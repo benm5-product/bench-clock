@@ -30,10 +30,13 @@ const body = html.slice(html.indexOf('<body>') + 6, html.lastIndexOf('</body>'))
 const headStyles = head.match(/<style>[\s\S]*?<\/style>/g) || [];
 
 const seed = `<script>
-/* Prototype only: three demo teams the first time this page is opened. */
+/* Prototype only: three demo teams the first time this page is opened. A browser that already has the
+   older demo teams (no football team) gets the football demo team added in front of them. */
 (function(){
   try{
-    if(localStorage.getItem('bench-clock-teams-v1')) return;
+    let saved=null; try{saved=JSON.parse(localStorage.getItem('bench-clock-teams-v1')||'null')}catch(e){}
+    const ids=saved&&Array.isArray(saved.teams)?saved.teams.map(t=>t.id):null;
+    if(ids&&(!ids.includes('demo-rl')||ids.includes('demo-soccer'))) return;
     const names=[[1,'Archie'],[2,'Mason'],[3,'Lachie'],[4,'Ruby'],[5,'Kai'],[6,'Isla'],[7,'Hudson'],[8,'Zara'],[9,'Cooper'],[10,'Mia'],[11,'Jack'],[12,'Ava'],[13,'Leo'],[14,'Noah'],[15,'Evie']];
     const st=(list,onField)=>({cfg:{len:20,periods:2,onField},players:list.map(([n,name],i)=>({id:'p'+i,num:n,name,on:i<onField})),example:false,p:0,acc:0,runStart:null,halfEnd:[],events:[],finished:false});
     const basic=[[3,'Mia'],[5,'Jack'],[7,'Ava'],[8,'Leo'],[10,'Isla'],[11,'Noah'],[12,'Zara'],[14,'Oscar'],[21,'Ruby']];
@@ -46,11 +49,11 @@ const seed = `<script>
     // Sophie (Left Striker) came off for Amelia at 8:00.
     soccer.players[9].on=false; delete soccer.players[9].pos; soccer.players[11].on=true; soccer.players[11].pos='f-ls';
     soccer.events.push({pid:'p9',h:0,t:480000,type:'off',pos:'f-ls',g:'g1'},{pid:'p11',h:0,t:480000,type:'on',pos:'f-ls',g:'g1'});
-    localStorage.setItem('bench-clock-teams-v1',JSON.stringify({teams:[
-      {id:'demo-soccer',name:'Under 12s Football',sport:'soccer',formation:'4-4-2',brand:{primary:'#1d3f8a',secondary:['#d62828','#ffffff'],logo:null},state:soccer},
-      {id:'demo-rl',name:'Under 10s Rugby League',sport:'rl',state:st(names,11)},
-      {id:'demo-basic',name:'Basic team',sport:'basic',state:st(basic,7)}
-    ],cur:'demo-soccer',updatedAt:1}));
+    const football={id:'demo-soccer',name:'Under 12s Football',sport:'soccer',formation:'4-4-2',brand:{primary:'#1d3f8a',secondary:['#d62828','#ffffff'],logo:null},state:soccer};
+    const data=ids
+      ?{...saved,teams:[football,...saved.teams],cur:'demo-soccer'}
+      :{teams:[football,{id:'demo-rl',name:'Under 10s Rugby League',sport:'rl',state:st(names,11)},{id:'demo-basic',name:'Basic team',sport:'basic',state:st(basic,7)}],cur:'demo-soccer',updatedAt:1};
+    localStorage.setItem('bench-clock-teams-v1',JSON.stringify(data));
   }catch(e){}
 })();
 </script>
