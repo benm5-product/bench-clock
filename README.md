@@ -45,7 +45,7 @@ Send the same address and steps to other parents. Each phone keeps its own teams
 1. Upload the new `index.html` to the repo, replacing the old one.
 2. Open `sw.js` in GitHub, tap the pencil icon, and raise the number in `bench-clock-2` (to `-3`, and so on). Commit the change.
 3. Open `android-app/VERSION` and raise it too (e.g. `1.3.0` → `1.4.0`), so the Android app updates as well.
-4. Phones pick up the update after opening the app with signal. It applies the next time the app is opened. Saved teams aren't affected.
+4. Phones pick up the update the next time the app is opened with signal. Saved teams aren't affected.
 5. GitHub builds a new Android app file automatically (**Actions → Build signed APK**).
 
 ## Files

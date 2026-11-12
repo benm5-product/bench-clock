@@ -11,7 +11,7 @@ Bench Clock is a sideline substitution tracker for the kids' sports teams I mana
 Web app (repo root, also used by the Android build):
 
 - `index.html` is the whole app: HTML, CSS and JS in one file. There's no build step and no framework.
-- `sw.js` is the service worker. It caches every file so the app works with no signal. Its `FILES` list is also what the Android build copies.
+- `sw.js` is the service worker. It caches every file so the app works with no signal, and when there is signal it opens the newest `index.html` (falling back to the saved copy after 3 seconds). Its `FILES` list is also what the Android build copies.
 - `manifest.webmanifest` sets the Home Screen name, icon and colours.
 - `*.png` are icons, and `*.woff2` are bundled fonts (Barlow Condensed, Atkinson Hyperlegible, basic Latin plus Latin-ext for accented names).
 - Keep all these web files in the repo root. Don't put them in folders, because I upload them from my phone and GitHub Pages serves the root.
@@ -32,7 +32,7 @@ Android (everything Android-only lives in `android-app/`, the one folder allowed
   - Never load `capacitor.js`, `native.js` or anything else Android-only on the web.
 - **Bump both version numbers** whenever any app file changes:
   - `VERSION` in `sw.js` (`bench-clock-2` → `bench-clock-3` …). Otherwise installed iPhones never update.
-  - `android-app/VERSION` (`1.3.0` → `1.4.0` for features, `1.3.1` for fixes). Each part stays below 100. Android won't install an update with the same or a lower number.
+  - `android-app/VERSION` (`1.3.0` → `1.4.0` for features, `1.3.1` for fixes). Each part stays below 100. Android won't install an update with the same or a lower number. The one exception: a change only to `sw.js` (which the Android app doesn't contain) needs no Android version bump, so parents aren't sent an identical APK.
 - If you add a new web file, add it to the `FILES` list in `sw.js`. That's also how it gets into the Android app.
 - **Commit straight to `main`** unless I ask for a branch, so the change goes live.
 - **Every update goes out to all three places in unison.** After a change:

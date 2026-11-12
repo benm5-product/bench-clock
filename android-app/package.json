@@ -8,7 +8,7 @@
     "assets": "node scripts/make-icon.mjs && capacitor-assets generate --android --iconBackgroundColor '#1f4d32' --iconBackgroundColorDark '#1f4d32' --splashBackgroundColor '#1f4d32' --splashBackgroundColorDark '#0e1410'",
     "serve": "node scripts/copy-web.mjs && node scripts/serve.mjs",
     "test:web": "node tests/web-smoke.mjs",
-    "test:iphone": "node tests/iphone-web.mjs",
+    "test:iphone": "node tests/iphone-web.mjs && node tests/iphone-update.mjs",
     "prototype": "node scripts/build-prototype.mjs"
   },
   "dependencies": {
