@@ -245,11 +245,24 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
 .sheetsec{margin:8px 0 0}
 .sheetcancel{margin-top:4px}
 
-@media (max-width:420px){.clock{font-size:48px}.ctrls{min-width:118px}}
-@media (prefers-reduced-motion:reduce){.chip:active{transform:none}}
+/* Pages and the floating tab bar (iOS style: frosted glass capsule, icon over label, selected pill) */
+.page{display:flex;flex-direction:column;gap:22px}
+.pagehead{margin:0;font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:.03em;text-transform:uppercase}
+.card>.brand:first-child{margin-top:0;padding-top:0;border-top:0}
+.card>h3:first-child{margin:0 0 4px;font-family:var(--f-display);font-size:18px;text-transform:uppercase;letter-spacing:.03em}
+.tabbar{position:fixed;z-index:40;left:max(16px,var(--sa-left));right:max(16px,var(--sa-right));bottom:calc(10px + var(--sa-bottom));
+  max-width:440px;margin:0 auto;display:flex;gap:2px;padding:5px;border-radius:999px;
+  background:color-mix(in srgb,var(--surface) 74%,transparent);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+  border:1px solid color-mix(in srgb,var(--ink) 10%,transparent);box-shadow:0 8px 28px rgba(0,0,0,.18),0 1px 2px rgba(0,0,0,.08)}
+.tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;border:0;border-radius:999px;background:transparent;
+  padding:6px 4px 5px;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.01em;-webkit-tap-highlight-color:transparent;transition:background-color .2s,color .2s}
+.tabbar svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tabbar button[aria-selected="true"]{color:var(--num);background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.tabbar button:active{transform:scale(.96)}
+main{padding-bottom:calc(96px + var(--sa-bottom))}
 
 @media (max-width:420px){.clock{font-size:48px}.ctrls{min-width:118px}}
-@media (prefers-reduced-motion:reduce){.chip:active{transform:none}}
+@media (prefers-reduced-motion:reduce){.chip:active,.tabbar button:active{transform:none}.tabbar button{transition:none}}
 </style>
 
 <header class="board">
@@ -273,6 +286,7 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
 </header>
 
 <main class="wrap">
+ <div class="page" id="pageBench" data-page="bench">
   <div class="sides">
     <div class="viewbar" id="viewBar" hidden><div class="viewseg" id="viewSeg" role="group" aria-label="Show players as"><button type="button" data-view="field" aria-pressed="true">Field</button><button type="button" data-view="list" aria-pressed="false">List</button></div><select id="formSel" aria-label="Formation" hidden></select></div>
     <section>
@@ -311,9 +325,12 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
       <ul class="log" id="log"></ul>
     </div>
   </section>
+ </div>
 
-  <details class="card" id="setup">
-    <summary>Team &amp; game setup</summary>
+ <div class="page" id="pageTeam" data-page="team" hidden>
+  <h2 class="pagehead">Team</h2>
+  <section class="card" id="setup">
+    <h3>Team &amp; game setup</h3>
     <div class="form">
       <label style="grid-column:1/-1">Team name<input id="teamName" type="text" maxlength="40" autocomplete="off"></label>
       <label>Period length (min)<input id="cfgLen" type="number" min="1" max="60" inputmode="numeric"></label>
@@ -330,6 +347,13 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
       <button class="btn-line" id="addTeamBtn">Add a team</button>
       <button class="btn-line btn-danger" id="delTeamBtn">Delete this team</button>
     </div>
+    <p class="note">Each team keeps its own squad, settings and game. Switch teams from the name at the top.</p>
+  </section>
+ </div>
+
+ <div class="page" id="pageSettings" data-page="settings" hidden>
+  <h2 class="pagehead">Settings</h2>
+  <section class="card">
     <div class="brand">
       <h3>Club logo &amp; colours</h3>
       <div class="brandrow">
@@ -346,6 +370,8 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
       <div class="row" style="margin:0"><button class="btn-line" id="brandReset">Use default colours</button></div>
       <p class="note" style="margin:0">Primary colours the scoreboard. The first secondary is used for the main button and highlights. Secondaries also show as stripes under the scoreboard. Up to 3 secondaries.</p>
     </div>
+  </section>
+  <section class="card">
     <div class="brand">
       <h3>Backup &amp; move teams</h3>
       <p class="note" style="margin:0">Keep a copy of all your teams, or move them to another phone.</p>
@@ -362,10 +388,16 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
       <div class="row" style="margin:0"><button class="btn-line btn-danger" id="importConfirm" hidden></button></div>
       <p class="note" id="backupMsg" role="status" style="margin:0"></p>
     </div>
-    <p class="note">Each team keeps its own squad, settings and game. Switch teams from the name at the top.</p>
-    <p class="note" id="saveStatus">Saved on this phone.</p>
-  </details>
+    <p class="note" id="saveStatus" style="margin:0">Saved on this phone.</p>
+  </section>
+ </div>
 </main>
+
+<nav class="tabbar" id="tabBar" role="tablist" aria-label="Pages">
+  <button type="button" role="tab" id="tabBench" data-tab="bench" aria-selected="true" aria-controls="pageBench"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 12h18"/><circle cx="12" cy="12" r="3"/></svg>Bench</button>
+  <button type="button" role="tab" id="tabTeam" data-tab="team" aria-selected="false" aria-controls="pageTeam"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.2c2.6.4 4.5 2.8 4.5 5.8"/></svg>Team</button>
+  <button type="button" role="tab" id="tabSettings" data-tab="settings" aria-selected="false" aria-controls="pageSettings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg>Settings</button>
+</nav>
 
 <div class="sheet" id="sheet" hidden>
   <div class="sheetbox" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
@@ -571,6 +603,17 @@ $('logoFile').addEventListener('change',e=>{
   img.src=url;
 });
 
+/* ---------- pages: Bench, Team and Settings, switched from the tab bar ---------- */
+let page='bench';
+function showPage(name){
+  if(name!==page) closeSheet();
+  page=name;
+  document.querySelectorAll('[data-page]').forEach(el=>{el.hidden=el.dataset.page!==name});
+  document.querySelectorAll('#tabBar [data-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.tab===name)));
+  window.scrollTo(0,0);
+}
+$('tabBar').addEventListener('click',e=>{const b=e.target.closest('[data-tab]'); if(b) showPage(b.dataset.tab)});
+
 /* ---------- teams ---------- */
 function renderTeams(){
   const sel=$('teamSel');
@@ -585,8 +628,7 @@ function addTeam(){
   if(curTeam().brand) t.brand=JSON.parse(JSON.stringify(curTeam().brand));
   t.sport=sportOf(curTeam()); if(curTeam().formation) t.formation=curTeam().formation;
   T.teams.push(t); switchTo(t.id);
-  $('setup').open=true; const n=$('teamName'); n.focus(); n.select();
-  $('setup').scrollIntoView({block:'start'});
+  showPage('team'); const n=$('teamName'); n.focus(); n.select();
 }
 $('teamSel').addEventListener('change',e=>{closeSheet();const v=e.target.value; if(v==='__new') addTeam(); else switchTo(v)});
 $('addTeamBtn').addEventListener('click',addTeam);
@@ -1166,11 +1208,10 @@ function renderAll(){if(sheetMode&&S.finished) closeSheet(); renderTeams();apply
 renderAll(); fillSetup(); setStatus(OK_MSG); if(loadErr) save();
 if(firstRun) save();
 
-/* Android back button (does nothing on the web): close the pop-up or setup if open; ignore it while the clock runs; otherwise exit. */
+/* Android back button (does nothing on the web): close the pop-up, or go back to the Bench page; ignore it while the clock runs; otherwise exit. */
 Native.onBack(()=>{
-  const st=$('setup');
   if(!$('sheet').hidden){closeSheet();return}
-  if(st.open){st.open=false;return}
+  if(page!=='bench'){showPage('bench');return}
   if(anyRunning()) return;
   return 'exit';
 });

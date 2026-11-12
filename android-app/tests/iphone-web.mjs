@@ -24,6 +24,7 @@ const page = await ctx.newPage();
 page.on('pageerror', e => { console.log('  PAGE ERROR', e.message); failures++; });
 const stored = () => page.evaluate(k => JSON.parse(localStorage.getItem(k) || 'null'), KEY);
 const names = sel => page.$$eval(sel + ' .chip .nm', els => els.map(e => e.textContent));
+const tab = n => page.click(`#tabBar [data-tab="${n}"]`);
 
 console.log('Existing iPhone data opens unchanged');
 await page.goto(URL_);
@@ -46,6 +47,17 @@ const s1 = await stored();
 check(s1 && s1.teams[0].name === 'Saved Sharks' && s1.teams[0].state.events.length === 2 && 'cur' in s1 && 'updatedAt' in s1, 'data still in the same key and shape');
 const bottom = await page.$$eval('.sides .chip', els => Math.max(...els.map(e => e.getBoundingClientRect().bottom)));
 check(bottom <= 844, `all tiles fit on one 390x844 screen (bottom ${Math.round(bottom)}px)`);
+const barTop = await page.$eval('#tabBar', el => el.getBoundingClientRect().top);
+check(bottom <= barTop, `tiles sit above the tab bar (tiles end ${Math.round(bottom)}px, bar starts ${Math.round(barTop)}px)`);
+check(await page.isVisible('#pageBench') && await page.isHidden('#pageTeam') && await page.isHidden('#pageSettings'), 'opens on the Bench page');
+await tab('team');
+check(await page.isVisible('#teamName') && await page.isHidden('#pageBench') && await page.isVisible('#clock'), 'Team tab shows team setup, scoreboard stays');
+check((await page.getAttribute('#tabTeam', 'aria-selected')) === 'true', 'Team tab marked as selected');
+await page.screenshot({ path: `${SHOTS}/iphone-08-team.png` });
+await tab('settings');
+check(await page.isVisible('#colPrimary') && await page.isVisible('#copyBackup') && await page.isHidden('#pageTeam'), 'Settings tab shows colours and backup');
+await page.screenshot({ path: `${SHOTS}/iphone-09-settings.png` });
+await tab('bench');
 await page.screenshot({ path: `${SHOTS}/iphone-01-light.png` });
 await page.emulateMedia({ colorScheme: 'dark' });
 await page.waitForTimeout(150);
@@ -53,14 +65,14 @@ await page.screenshot({ path: `${SHOTS}/iphone-02-dark.png` });
 await page.emulateMedia({ colorScheme: 'light' });
 
 console.log('Rugby League team');
-await page.evaluate(() => { document.getElementById('setup').open = true; });
+await tab('team');
 await page.selectOption('#cfgSport', 'rl');
 check(await page.$eval('#cfgOn', i => i.disabled && i.value === '11'), 'players on field fixed at 11');
 await page.fill('#roster', Array.from({ length: 14 }, (_, i) => `${i + 1} Kid${i + 1}`).join('\n'));
 await page.click('#applyBtn');
 await page.click('#resetBtn');
 await page.click('#resetBtn'); // New game, two taps: the new squad starts with 1-11 on
-await page.evaluate(() => { document.getElementById('setup').open = false; window.scrollTo(0, 0); });
+await tab('bench');
 check(await page.isVisible('#viewSeg'), 'Field/List switch shown');
 check((await page.$$('.pitch .slot')).length === 11, '11 positions on the pitch');
 await page.click('#goBtn');
@@ -87,14 +99,14 @@ check((await page.textContent('#tableTitle')) === 'Time on by player' && (await 
 await page.click('#goBtn');
 
 console.log('Football (Soccer) team with formations');
-await page.evaluate(() => { document.getElementById('setup').open = true; });
+await tab('team');
 await page.selectOption('#cfgSport', 'soccer');
 check(await page.isVisible('#cfgFormation') && (await page.$eval('#cfgFormation', s => s.value)) === '4-4-2', 'formation choice appears, 4-4-2 by default');
 check(await page.$eval('#cfgOn', i => i.disabled && i.value === '11'), 'players on field follows the formation (11)');
 await page.fill('#roster', Array.from({ length: 15 }, (_, i) => `${i + 1} Kid${i + 1}`).join('\n'));
 await page.click('#applyBtn');
 await page.click('#resetBtn'); await page.click('#resetBtn');
-await page.evaluate(() => { document.getElementById('setup').open = false; window.scrollTo(0, 0); });
+await tab('bench');
 check(await page.isVisible('#formSel') && (await page.$eval('#formSel', s => s.value)) === '4-4-2', 'formation selector beside Field | List');
 check((await page.$$('.pitch.soccer .slot')).length === 11 && !!(await page.$('.slot[data-pos="f-gk"]')), '11 positions on a football pitch, with a goalkeeper');
 const posOf = async () => Object.fromEntries((await stored()).teams[0].state.players.filter(p => p.on).map(p => [p.name, p.pos]));
@@ -141,7 +153,7 @@ await page.screenshot({ path: `${SHOTS}/iphone-07-football-442-dark.png` });
 await page.emulateMedia({ colorScheme: 'light' });
 
 console.log('Backup: paste flow with two taps');
-await page.evaluate(() => { document.getElementById('setup').open = true; });
+await tab('settings');
 await page.click('#pasteToggle');
 await page.fill('#pasteText', JSON.stringify({ app: 'bench-clock', version: 1, data: old }));
 await page.click('#pasteGo');

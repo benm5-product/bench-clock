@@ -47,8 +47,9 @@ Android (everything Android-only lives in `android-app/`, the one folder allowed
   - Keep Export/Import backups compatible across both versions, including older backups. A backup is `{app:'bench-clock',version:1,exportedAt,data:{teams,cur,updatedAt}}`, and import also accepts a bare `{teams,…}` from Android 1.0–1.2.
 - **Never change the Android package id (`au.benchclock.app`) or the signing key.** Otherwise installed Android apps can't update and parents would lose their teams. The workflow checks the key's fingerprint.
 - Keep these working:
+  - the three pages (Bench, Team, Settings) and the floating tab bar at the bottom, with the scoreboard on every page; the Android back button returns to Bench
   - the clock, which is timestamp-based so it survives the phone locking or the app being closed
-  - On field and Bench side by side, with all tiles on one iPhone screen
+  - On field and Bench side by side, with all tiles on one iPhone screen above the tab bar
   - ordering: longest on and longest off at the top
   - tap to move a player, and long-press-drag to swap
   - Undo, where a swap or position change undoes as one action

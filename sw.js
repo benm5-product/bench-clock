@@ -1,7 +1,7 @@
 // Bench Clock offline cache. Change VERSION whenever any file below changes,
 // so phones pick up the update. With signal, opening the app shows the newest version straight away.
 // The Android build (android-app/scripts/copy-web.mjs) also uses this list to know which files to copy.
-const VERSION = 'bench-clock-4';
+const VERSION = 'bench-clock-5';
 const FILES = [
   './',
   './index.html',

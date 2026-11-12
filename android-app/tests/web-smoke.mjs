@@ -48,6 +48,7 @@ page.on('dialog', d => d.accept());
 const clockText = () => page.textContent('#clock');
 const names = sel => page.$$eval(sel + ' .chip .nm', els => els.map(e => e.textContent));
 const log = () => page.evaluate(() => window.__log);
+const tab = n => page.click(`#tabBar [data-tab="${n}"]`);
 const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('MOCK_PREFS:bench-clock-teams-v1') || 'null'));
 
 console.log('First launch imports existing localStorage data');
@@ -128,8 +129,9 @@ await page.evaluate(() => window.scrollTo(0, 0));
 console.log('Back button');
 await page.evaluate(() => window.__fire('backButton'));
 check((await log()).exit === 0, 'back ignored while the clock runs');
-await page.evaluate(() => { document.getElementById('setup').open = true; window.__fire('backButton'); });
-check(!(await page.evaluate(() => document.getElementById('setup').open)), 'back closes the setup panel');
+await tab('team');
+await page.evaluate(() => window.__fire('backButton'));
+check(await page.isVisible('#pageBench') && (await log()).exit === 0, 'back from the Team page goes to the Bench page');
 
 console.log('Background for a minute (timestamp clock)');
 const before = parseClock(await clockText());
@@ -168,6 +170,7 @@ const blue = bb.teams.find(t => t.name === 'Blue Bandits');
 check(blue && blue.brand.logo && blue.brand.logo.length < 70000, `logo resized and saved (${blue && blue.brand.logo.length} chars)`);
 check((await log()).bars.at(-1).statusColor === '#1e40af', 'status bar follows the new primary colour');
 check((await page.textContent('#period')) === '1st Quarter', 'quarters setting applied');
+await tab('bench');
 await page.click('#goBtn'); await page.waitForTimeout(1200); await page.click('#goBtn');
 await page.tap('#field .chip >> nth=0');
 await page.evaluate(() => window.scrollTo(0, 0));
@@ -184,7 +187,7 @@ check((await clockText()) === blueClock && (await page.textContent('#goBtn')) ==
 check((await page.textContent('#clockSub')).includes('of 20:00'), 'Blue Bandits shows its own settings');
 
 console.log('Export, delete, import');
-await page.evaluate(() => { document.getElementById('setup').open = true; });
+await tab('settings');
 await page.click('#exportFile');
 await page.waitForTimeout(300);
 const L = await log();
@@ -192,10 +195,12 @@ check(L.shares.length === 1 && L.shares[0].files[0].startsWith('file:///cache/be
 const exported = Object.values(L.files)[0];
 check(JSON.parse(exported).app === 'bench-clock' && JSON.parse(exported).data.teams.length === 2, 'export contains both teams, in the same backup format as the iPhone version');
 writeFileSync(`${SHOTS}/export.json`, exported);
+await tab('team');
 await page.click('#delTeamBtn');
 check(/Tap again/.test(await page.textContent('#delTeamBtn')), 'delete needs a second tap');
 await page.click('#delTeamBtn');
 check((await stored()).teams.length === 1, 'Blue Bandits deleted');
+await tab('settings');
 await page.setInputFiles('#importFile', { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(exported) });
 await page.waitForTimeout(400);
 check(/Replace my 1 team with 2 teams/.test(await page.textContent('#importConfirm')), 'import shows what it will replace');
@@ -226,7 +231,8 @@ await page.click('#goBtn'); await page.waitForTimeout(1100); await page.click('#
 check((await page.textContent('#nextBtn')) === 'Full time', 'button says Full time in the last half');
 await page.click('#nextBtn');
 check((await page.textContent('#period')) === 'Full time' && (await page.textContent('#goBtn')) === 'New game', 'full time reached, button is New game');
-await page.evaluate(() => { document.getElementById('setup').open = false; window.__fire('backButton'); });
+await tab('bench');
+await page.evaluate(() => window.__fire('backButton'));
 check((await log()).exit === 1, 'back exits when the clock is stopped');
 await page.screenshot({ path: `${SHOTS}/04-full-time.png` });
 await page.click('#goBtn');
