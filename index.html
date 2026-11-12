@@ -201,28 +201,33 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
 .tryline{position:absolute;top:0;left:0;right:0;height:26px;display:flex;align-items:center;justify-content:center;
   font-family:var(--f-display);font-weight:700;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.75);
   background:rgba(0,0,0,.18)}
-.slots{position:relative;z-index:1;display:grid;grid-template-columns:repeat(12,1fr);gap:8px 4px;padding:6px 0}
-/* Football: 24 columns so lines of 1 to 6 players spread evenly; goal at each end, centre circle on halfway */
-.slots.g24{grid-template-columns:repeat(24,1fr);gap:8px 3px}
-.g24 .slot .pos{white-space:normal;line-height:1.15;text-align:center}
+.slots{position:relative;z-index:1;height:calc(var(--rows) * 72px + 2px)}
+/* Field view tokens: every player the same size, centred on their spot (--x across the pitch, --r row from the top).
+   Number disc with a ring: green = rested this half, orange = no rest yet. Position code sits on top of the disc. */
+.sides .chip.slot,.slot{position:absolute;left:clamp(0px,calc(var(--x) - 32px),calc(100% - 64px));top:calc((var(--r) - 1) * 72px + 2px);
+  width:64px;height:70px;min-height:0;margin:0;padding:0;display:flex;flex-direction:column;align-items:center;gap:0;
+  border:0;border-radius:12px;background:transparent;box-shadow:none;color:#fff;text-align:center}
+.slot .disc{width:34px;height:34px;margin-top:8px;flex:none;border-radius:50%;display:grid;place-items:center;
+  background:var(--slot);color:var(--slot-ink);font-family:var(--f-display);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums;
+  box-shadow:0 0 0 3px var(--warn),0 2px 6px rgba(0,0,0,.35)}
+.slot.rested .disc{box-shadow:0 0 0 3px var(--ok),0 2px 6px rgba(0,0,0,.35)}
+.slot .pos{position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:1;padding:0 5px;border-radius:999px;
+  background:rgba(0,0,0,.6);color:#fff;font-size:9.5px;line-height:14px;letter-spacing:.04em;white-space:nowrap}
+.slot .pos.bib-pink{background:var(--bib-pink);color:var(--bib-pink-ink)}
+.slot .pos.bib-yellow{background:var(--bib-yellow);color:var(--bib-yellow-ink)}
+.snm{margin-top:4px;max-width:100%;font-weight:700;font-size:12px;line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:0 1px 2px rgba(0,0,0,.65)}
+.slot .tag{font-size:10.5px;line-height:12px;font-variant-numeric:tabular-nums;opacity:.95;text-shadow:0 1px 2px rgba(0,0,0,.65)}
+.slot.empty .disc{background:rgba(255,255,255,.1);color:#fff;box-shadow:none;border:2px dashed rgba(255,255,255,.8);font-family:var(--f-body);font-weight:400;font-size:20px}
+.slot.empty .snm{font-weight:400;opacity:.85}
+.slot.drop-target .disc{box-shadow:0 0 0 4px var(--accent),0 0 0 9px color-mix(in srgb,var(--accent) 40%,transparent)}
+.ghost.slot{position:fixed;left:0;top:0;background:transparent;box-shadow:none;border:0}
 .pitch.soccer::after{top:calc(50% + 12px);border-top-style:solid}
 .mk{position:absolute;border:2px solid var(--chalkline);pointer-events:none}
 .mk.box{left:28%;right:28%;height:44px}
 .mk.box.top{top:26px;border-top:0}
 .mk.box.bot{bottom:6px;border-bottom:0}
 .mk.circle{left:50%;top:calc(50% + 12px);width:88px;height:88px;border-radius:50%;transform:translate(-50%,-50%)}
-.sides .chip.slot,.slot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;text-align:center;
-  min-width:0;min-height:62px;padding:4px 3px;border-radius:10px;background:var(--slot);color:var(--slot-ink);border:1.5px solid transparent;
-  box-shadow:0 2px 6px rgba(0,0,0,.22)}
-.slot .pos{font-size:10px;letter-spacing:.03em;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.snm{font-weight:700;font-size:12.5px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
-.snm b{font-family:var(--f-display);font-size:15px;color:var(--num)}
-.slot .tag{font-size:10.5px;white-space:normal;line-height:1.25;display:flex;flex-wrap:wrap;gap:1px 3px;justify-content:center;align-items:center}
-.slot .pill{font-size:9.5px;padding:0 5px}
-.slot.empty{background:rgba(255,255,255,.08);color:#fff;border:1.5px dashed rgba(255,255,255,.7);box-shadow:none}
-.slot.empty .snm{font-weight:400;font-size:12px;opacity:.85}
-.slot.empty .pos:not(.bib-pink):not(.bib-yellow){color:#fff;opacity:.9}
-.slot.drop-target{border:1.5px solid var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 55%,transparent)}
 .pos{font-family:var(--f-display);font-weight:700;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);line-height:1.35}
 .pos.bib-pink,.pos.bib-yellow{border-radius:999px;padding:0 6px}
 .pos.bib-pink{background:var(--bib-pink);color:var(--bib-pink-ink)}
@@ -804,7 +809,7 @@ function renderPlayers(){
   const fs=$('formSel'); fs.hidden=!isSoccer();
   if(isSoccer()){if(!fs.options.length) fs.innerHTML=formationOptions(); fs.value=formationOf(curTeam())}
   $('sideHint').textContent=rl
-    ?(fv?`Tap a player or an empty position to make a ${sw}. Drag a bench player onto a position to swap them on, or drag between positions to move players around. Green means they\u2019ve had a rest this half.`
+    ?(fv?`Tap a player or an empty position to make a ${sw}. Drag a bench player onto a position to swap them on, or drag between positions to move players around. A green ring means they\u2019ve had a rest this half, orange means not yet.`
         :`Tap a player to make a ${sw} or change their position, or drag one onto a player in the other column to swap them. Longest on and longest off are at the top. Green means they\u2019ve had a rest this half.`)
     :'Tap a player to move them, or drag one onto a player in the other column to swap them. Longest on and longest off are at the top. Green means they\'ve had a rest this half.';
   const on=S.players.filter(p=>p.on), off=S.players.filter(p=>!p.on);
@@ -828,16 +833,17 @@ function chip(p,on){
 /* Field view: positions laid out like a pre-game TV team graphic. */
 function pitch(){
   const soccer=isSoccer(), sw=subWord();
-  const slots=posList().map(ps=>{
-    const p=occupant(ps.id), st=`grid-column:${ps.c}/span ${ps.w};grid-row:${ps.r}`;
-    return p
-      ?`<button class="chip slot" data-pid="${p.id}" data-pos="${ps.id}" style="${st}" aria-label="${esc(ps.name)}: ${esc(p.name)}, tap to make a ${sw}">${posBadge(ps,!ps.narrow)}<span class="snm"><b>${esc(p.num)}</b> ${esc(p.name)}</span><span class="tag" data-t="${p.id}" data-c="slot"></span></button>`
-      :`<button class="slot empty" data-pos="${ps.id}" style="${st}" aria-label="${esc(ps.name)} is empty, tap to put a player on">${posBadge(ps,!ps.narrow)}<span class="snm">Empty</span></button>`;
+  const list=posList(), cols=soccer?24:12, rows=Math.max(...list.map(x=>x.r));
+  const slots=list.map(ps=>{
+    const p=occupant(ps.id), st=`--x:${((ps.c-1+ps.w/2)/cols*100).toFixed(2)}%;--r:${ps.r}`;
+    if(!p) return `<button class="slot empty" data-pos="${ps.id}" style="${st}" aria-label="${esc(ps.name)} is empty, tap to put a player on">${posBadge(ps,false)}<span class="disc">+</span><span class="snm">Empty</span></button>`;
+    const rested=restedMs(p.id,S.p)>=1000;
+    return `<button class="chip slot${rested?' rested':''}" data-pid="${p.id}" data-pos="${ps.id}" style="${st}" aria-label="${esc(ps.name)}: number ${esc(p.num)} ${esc(p.name)}, ${rested?'rested this half':'no rest yet this half'}, tap to make a ${sw}">${posBadge(ps,false)}<span class="disc">${esc(p.num)}</span><span class="snm">${esc(p.name)}</span><span class="tag" data-t="${p.id}" data-c="slot"></span></button>`;
   }).join('');
   const loose=S.players.filter(p=>p.on&&!p.pos);
   return (soccer
-      ?`<div class="pitch soccer"><div class="tryline">Attacking this way</div><div class="mk box top"></div><div class="mk circle"></div><div class="mk box bot"></div><div class="slots g24">${slots}</div></div>`
-      :`<div class="pitch"><div class="tryline">Try line</div><div class="slots">${slots}</div></div>`)
+      ?`<div class="pitch soccer"><div class="tryline">Attacking this way</div><div class="mk box top"></div><div class="mk circle"></div><div class="mk box bot"></div><div class="slots" style="--rows:${rows}">${slots}</div></div>`
+      :`<div class="pitch"><div class="tryline">Try line</div><div class="slots" style="--rows:${rows}">${slots}</div></div>`)
     +(loose.length?`<p class="hint" style="margin:6px 0 4px">On the field with no position left (more players on than positions):</p><div class="grid">${loose.map(p=>chip(p,true)).join('')}</div>`:'');
 }
 function updateTimers(){
@@ -845,8 +851,9 @@ function updateTimers(){
   document.querySelectorAll('[data-t]').forEach(el=>{
     const p=P(el.dataset.t); if(!p) return;
     if(p.on){
+      if(el.dataset.c==='slot'){el.textContent=fmt(n-lastOn(p.id,S.p));return} // ring on the disc shows rested / no rest
       const r=restedMs(p.id,S.p);
-      el.innerHTML=`<span class="tm-on">${fmt(n-lastOn(p.id,S.p))}</span>${el.dataset.c==='slot'?' ':' on '}`+(r>=1000?`<span class="pill ok">Rested</span>`:`<span class="pill warn">No rest</span>`);
+      el.innerHTML=`<span class="tm-on">${fmt(n-lastOn(p.id,S.p))}</span> on `+(r>=1000?`<span class="pill ok">Rested</span>`:`<span class="pill warn">No rest</span>`);
     }else{
       const s=offSince(p.id,S.p);
       el.innerHTML=`<span class="tm">${fmt(n-s)}</span> off · since ${fmt(s)}`;

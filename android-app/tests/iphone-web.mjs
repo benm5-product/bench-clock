@@ -115,16 +115,19 @@ check(p442.Kid1 === 'f-gk' && p442.Kid2 === 'f-lb' && p442.Kid10 === 'f-ls', 'sq
 
 // Every formation: right number of positions, no duplicates, nothing overlapping, every position named.
 const forms = await page.$$eval('#formSel optgroup', gs => gs.flatMap(g => [...g.querySelectorAll('option')].map(o => [o.value, parseInt(g.label)])));
-let bad = [];
+let bad = []; const sizes = new Set();
 for (const [f, size] of forms) {
   await page.selectOption('#formSel', f);
   const r = await page.$$eval('.pitch .slot', els => ({
     ids: els.map(e => e.dataset.pos), names: els.map(e => e.querySelector('.pos').textContent),
     boxes: els.map(e => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; }),
-    wide: document.documentElement.scrollWidth > innerWidth }));
+    wide: document.documentElement.scrollWidth > innerWidth,
+    sizes: els.map(e => { const b = e.getBoundingClientRect(); return Math.round(b.width) + 'x' + Math.round(b.height); }) }));
+  r.sizes.forEach(z => sizes.add(z));
   const overlap = r.boxes.some((a, i) => r.boxes.some((b, j) => i < j && a[0] < b[2] - 1 && b[0] < a[2] - 1 && a[1] < b[3] - 1 && b[1] < a[3] - 1));
   if (r.ids.length !== size || new Set(r.ids).size !== size || overlap || r.wide || r.names.some(n => !n || n === '?')) bad.push(f);
 }
+check(sizes.size === 1, `every player tile is the same size in every formation (${[...sizes].join(', ')})`);
 check(forms.length >= 40 && bad.length === 0, `all ${forms.length} formations lay out correctly${bad.length ? ' (problems: ' + bad.join(', ') + ')' : ''}`);
 await page.selectOption('#formSel', '4-4-2');
 const before = await posOf();
@@ -140,6 +143,7 @@ await page.selectOption('#formSel', '4-4-2');
 check((await page.$$('.pitch .slot.empty')).length === 0, 'back to 4-4-2 with every position filled');
 await page.tap('.pitch .slot[data-pos="f-ls"]');
 check(/Substitute with/.test(await page.textContent('#sheetHint')), 'football uses the word substitution');
+check(!!(await page.$('.pitch .slot[data-pos="f-gk"] .disc')) && (await page.$$('.pitch .slot.rested')).length === 0, 'number discs shown, no rested rings before anyone has rested');
 await page.tap('#sheetList [data-act^="swap:"] >> nth=0');
 const sub = (await stored()).teams[0].state.players.find(p => p.on && p.pos === 'f-ls');
 check(sub && sub.name === 'Kid12', `substitute Kid12 now Left Striker (${sub && sub.name})`);
