@@ -2,7 +2,7 @@
 // with no Capacitor. Checks the Android extras stay out, saved teams survive, Rugby League works,
 // and the app opens offline. Run from android-app/:  npm run test:iphone   (needs Playwright with Chromium)
 import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { serve } from './serve-dir.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -86,6 +86,60 @@ await page.click('#tableSeg [data-table="on"]');
 check((await page.textContent('#tableTitle')) === 'Time on by player' && (await stored()).teams[0].table === 'on', 'time on/off switch works and is remembered');
 await page.click('#goBtn');
 
+console.log('Football (Soccer) team with formations');
+await page.evaluate(() => { document.getElementById('setup').open = true; });
+await page.selectOption('#cfgSport', 'soccer');
+check(await page.isVisible('#cfgFormation') && (await page.$eval('#cfgFormation', s => s.value)) === '4-4-2', 'formation choice appears, 4-4-2 by default');
+check(await page.$eval('#cfgOn', i => i.disabled && i.value === '11'), 'players on field follows the formation (11)');
+await page.fill('#roster', Array.from({ length: 15 }, (_, i) => `${i + 1} Kid${i + 1}`).join('\n'));
+await page.click('#applyBtn');
+await page.click('#resetBtn'); await page.click('#resetBtn');
+await page.evaluate(() => { document.getElementById('setup').open = false; window.scrollTo(0, 0); });
+check(await page.isVisible('#formSel') && (await page.$eval('#formSel', s => s.value)) === '4-4-2', 'formation selector beside Field | List');
+check((await page.$$('.pitch.soccer .slot')).length === 11 && !!(await page.$('.slot[data-pos="f-gk"]')), '11 positions on a football pitch, with a goalkeeper');
+const posOf = async () => Object.fromEntries((await stored()).teams[0].state.players.filter(p => p.on).map(p => [p.name, p.pos]));
+const p442 = await posOf();
+check(p442.Kid1 === 'f-gk' && p442.Kid2 === 'f-lb' && p442.Kid10 === 'f-ls', 'squad placed goalkeeper, then defence to attack');
+
+// Every formation: right number of positions, no duplicates, nothing overlapping, every position named.
+const forms = await page.$$eval('#formSel optgroup', gs => gs.flatMap(g => [...g.querySelectorAll('option')].map(o => [o.value, parseInt(g.label)])));
+let bad = [];
+for (const [f, size] of forms) {
+  await page.selectOption('#formSel', f);
+  const r = await page.$$eval('.pitch .slot', els => ({
+    ids: els.map(e => e.dataset.pos), names: els.map(e => e.querySelector('.pos').textContent),
+    boxes: els.map(e => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; }),
+    wide: document.documentElement.scrollWidth > innerWidth }));
+  const overlap = r.boxes.some((a, i) => r.boxes.some((b, j) => i < j && a[0] < b[2] - 1 && b[0] < a[2] - 1 && a[1] < b[3] - 1 && b[1] < a[3] - 1));
+  if (r.ids.length !== size || new Set(r.ids).size !== size || overlap || r.wide || r.names.some(n => !n || n === '?')) bad.push(f);
+}
+check(forms.length >= 40 && bad.length === 0, `all ${forms.length} formations lay out correctly${bad.length ? ' (problems: ' + bad.join(', ') + ')' : ''}`);
+await page.selectOption('#formSel', '4-4-2');
+const before = await posOf();
+await page.selectOption('#formSel', '4-3-3');
+const p433 = await posOf();
+const in433 = new Set(['f-gk', 'f-lb', 'f-lcb', 'f-rcb', 'f-rb', 'f-lcm', 'f-cm', 'f-rcm', 'f-lw', 'f-st', 'f-rw']);
+check(Object.values(p433).every(Boolean) && new Set(Object.values(p433)).size === 11, 'switching to 4-3-3 keeps all 11 in distinct positions');
+check(Object.entries(before).every(([n, pos]) => !in433.has(pos) || p433[n] === pos), 'players keep positions that still exist');
+check(Object.values(p433).every(pos => in433.has(pos)), 'everyone else moved to a 4-3-3 position');
+await page.selectOption('#formSel', '2-3-1');
+check((await page.$$('.pitch .slot')).length === 7 && /too many/.test(await page.textContent('#onCount')), '7-a-side: 7 positions, and it warns 4 too many are on');
+await page.selectOption('#formSel', '4-4-2');
+check((await page.$$('.pitch .slot.empty')).length === 0, 'back to 4-4-2 with every position filled');
+await page.tap('.pitch .slot[data-pos="f-ls"]');
+check(/Substitute with/.test(await page.textContent('#sheetHint')), 'football uses the word substitution');
+await page.tap('#sheetList [data-act^="swap:"] >> nth=0');
+const sub = (await stored()).teams[0].state.players.find(p => p.on && p.pos === 'f-ls');
+check(sub && sub.name === 'Kid12', `substitute Kid12 now Left Striker (${sub && sub.name})`);
+check(/Left Striker/.test(await page.textContent('#log')), 'log names the position');
+await page.tap('#undoBtn');
+check((await stored()).teams[0].state.players.find(p => p.pos === 'f-ls').name === 'Kid10', 'undo reverses the substitution');
+await page.screenshot({ path: `${SHOTS}/iphone-06-football-442.png` });
+await page.emulateMedia({ colorScheme: 'dark' });
+await page.waitForTimeout(150);
+await page.screenshot({ path: `${SHOTS}/iphone-07-football-442-dark.png` });
+await page.emulateMedia({ colorScheme: 'light' });
+
 console.log('Backup: paste flow with two taps');
 await page.evaluate(() => { document.getElementById('setup').open = true; });
 await page.click('#pasteToggle');
@@ -93,7 +147,7 @@ await page.fill('#pasteText', JSON.stringify({ app: 'bench-clock', version: 1, d
 await page.click('#pasteGo');
 check(/Replace my 1 team with 1 team/.test(await page.textContent('#importConfirm')), 'pasted backup checked');
 await page.click('#importConfirm');
-check((await stored()).teams[0].sport === 'rl', 'first tap does not replace');
+check((await stored()).teams[0].sport === 'soccer', 'first tap does not replace');
 await page.click('#importConfirm');
 check((await stored()).teams[0].name === 'Saved Sharks' && !(await stored()).teams[0].sport, 'second tap restores the backup');
 
@@ -104,7 +158,8 @@ check(requests.every(u => u.startsWith(URL_)), 'no requests to other sites');
 console.log('Works offline');
 await page.evaluate(() => navigator.serviceWorker.ready);
 await page.waitForTimeout(500);
-const cached = await page.evaluate(async () => (await (await caches.open('bench-clock-2')).keys()).length);
+const cacheName = readFileSync(new URL('../../sw.js', import.meta.url), 'utf8').match(/VERSION = '([^']+)'/)[1];
+const cached = await page.evaluate(async n => (await (await caches.open(n)).keys()).length, cacheName);
 check(cached >= 15, `offline copy saved (${cached} files)`);
 await ctx.setOffline(true);
 await page.reload();

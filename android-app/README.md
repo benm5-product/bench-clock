@@ -169,6 +169,7 @@ The game is the same: it's the same `index.html`. Inside the Android app:
   otherwise exits.
 - **Edge-to-edge:** the status bar takes the team's primary colour, with light or dark icons for
   contrast, and the content stays clear of the gesture bar.
+- **Sports:** Basic, Rugby League, and Football (Soccer) with formations for 11, 9, 7 and 5-a-side.
 - **Time on / Time off table** starts on "Time on" for Android and "Time off" for iPhone (each team
   remembers its choice).
 - **Portrait only**, own icon and splash screen, fonts bundled, no internet permission.

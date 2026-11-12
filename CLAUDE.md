@@ -41,7 +41,7 @@ Android (everything Android-only lives in `android-app/`, the one folder allowed
   3. From `android-app/`, run `npm run prototype` and republish `android-app/dist/bench-clock-prototype.html` to https://claude.ai/artifact/7ACmbZ2rKaem1VdY1qWYtB (same link, never a new one).
   4. Tell me the update is live in all three places, and what parents need to do (iPhone: open the app with signal; Android: download from the release link and tap Update).
 - The app must keep working fully offline. Don't add CDNs, external fonts, analytics or network calls. The Android app has no internet permission.
-- Data is saved under the key `bench-clock-teams-v1`, in the shape `{teams:[{id,name,brand,state,sport?,fieldView?,table?}], cur, updatedAt}`. On iPhone it's in `localStorage`; on Android it's in Capacitor Preferences.
+- Data is saved under the key `bench-clock-teams-v1`, in the shape `{teams:[{id,name,brand,state,sport?,formation?,fieldView?,table?}], cur, updatedAt}`. On iPhone it's in `localStorage`; on Android it's in Capacitor Preferences.
   - Never rename the key or break this shape, because parents' saved teams depend on it.
   - If the shape must change, migrate old data on load.
   - Keep Export/Import backups compatible across both versions, including older backups. A backup is `{app:'bench-clock',version:1,exportedAt,data:{teams,cur,updatedAt}}`, and import also accepts a bare `{teams,…}` from Android 1.0–1.2.
@@ -54,7 +54,8 @@ Android (everything Android-only lives in `android-app/`, the one folder allowed
   - Undo, where a swap or position change undoes as one action
   - the Rested / No rest badges per half
   - the "Who was off at…" slider and the Time on / Time off table
-  - sport per team: Basic, and Rugby League with named positions, the Field | List switch and the interchange list
+  - sport per team: Basic, Rugby League and Football (Soccer), with named positions, the Field | List switch and the interchange list
+  - Football formations (11, 9, 7 and 5-a-side), changeable mid-game, with players keeping or moving to the nearest position
   - multiple teams, with logo and colours per team
   - two-tap confirmation for New game, Delete team and Import
   - Export file, Copy backup, Paste backup and Import file

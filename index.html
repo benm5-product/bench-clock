@@ -187,7 +187,9 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
 .viewseg{display:flex;gap:3px;padding:3px;background:var(--surface);border:1.5px solid var(--line);border-radius:10px}
 .viewseg button{flex:1;border:0;border-radius:7px;padding:7px 10px;background:transparent;color:var(--muted);font-weight:700;font-size:14px}
 .viewseg button[aria-pressed="true"]{background:var(--pitch);color:var(--chalk)}
-.sides>.viewseg{grid-column:1/-1}
+.viewbar{grid-column:1/-1;display:flex;gap:8px;align-items:stretch;min-width:0}
+.viewbar .viewseg{flex:1}
+.viewbar select{flex:0 1 auto;min-width:0;max-width:52%;border:1.5px solid var(--line);border-radius:10px;padding:6px 8px;background:var(--surface);font-weight:700;font-size:14px}
 #tableSeg{margin:0 0 10px}
 .sides.fieldview{grid-template-columns:1fr}
 .sides.fieldview #bench{display:grid;grid-template-columns:1fr 1fr;gap:5px}
@@ -200,6 +202,15 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
   font-family:var(--f-display);font-weight:700;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.75);
   background:rgba(0,0,0,.18)}
 .slots{position:relative;z-index:1;display:grid;grid-template-columns:repeat(12,1fr);gap:8px 4px;padding:6px 0}
+/* Football: 24 columns so lines of 1 to 6 players spread evenly; goal at each end, centre circle on halfway */
+.slots.g24{grid-template-columns:repeat(24,1fr);gap:8px 3px}
+.g24 .slot .pos{white-space:normal;line-height:1.15;text-align:center}
+.pitch.soccer::after{top:calc(50% + 12px);border-top-style:solid}
+.mk{position:absolute;border:2px solid var(--chalkline);pointer-events:none}
+.mk.box{left:28%;right:28%;height:44px}
+.mk.box.top{top:26px;border-top:0}
+.mk.box.bot{bottom:6px;border-bottom:0}
+.mk.circle{left:50%;top:calc(50% + 12px);width:88px;height:88px;border-radius:50%;transform:translate(-50%,-50%)}
 .sides .chip.slot,.slot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;text-align:center;
   min-width:0;min-height:62px;padding:4px 3px;border-radius:10px;background:var(--slot);color:var(--slot-ink);border:1.5px solid transparent;
   box-shadow:0 2px 6px rgba(0,0,0,.22)}
@@ -263,7 +274,7 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
 
 <main class="wrap">
   <div class="sides">
-    <div class="viewseg" id="viewSeg" role="group" aria-label="Show players as" hidden><button type="button" data-view="field" aria-pressed="true">Field</button><button type="button" data-view="list" aria-pressed="false">List</button></div>
+    <div class="viewbar" id="viewBar" hidden><div class="viewseg" id="viewSeg" role="group" aria-label="Show players as"><button type="button" data-view="field" aria-pressed="true">Field</button><button type="button" data-view="list" aria-pressed="false">List</button></div><select id="formSel" aria-label="Formation" hidden></select></div>
     <section>
       <h2>On field <span class="count" id="onCount"></span></h2>
       <div class="grid" id="field"></div>
@@ -306,7 +317,8 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
     <div class="form">
       <label style="grid-column:1/-1">Team name<input id="teamName" type="text" maxlength="40" autocomplete="off"></label>
       <label>Period length (min)<input id="cfgLen" type="number" min="1" max="60" inputmode="numeric"></label>
-      <label>Sport<select id="cfgSport"><option value="basic">Basic</option><option value="rl">Rugby League</option></select></label>
+      <label>Sport<select id="cfgSport"><option value="basic">Basic</option><option value="rl">Rugby League</option><option value="soccer">Football (Soccer)</option></select></label>
+      <label id="cfgFormationLabel" hidden>Formation<select id="cfgFormation"></select></label>
       <label>Periods<select id="cfgPeriods"><option value="2">2 halves</option><option value="4">4 quarters</option></select></label>
       <label>Players on field<input id="cfgOn" type="number" min="1" max="30" inputmode="numeric"></label>
     </div>
@@ -571,7 +583,7 @@ function switchTo(id){T.cur=id;useTeam();resetView();save();renderAll();fillSetu
 function addTeam(){
   const t=newTeam('Team '+(T.teams.length+1),freshState([],{...S.cfg}));
   if(curTeam().brand) t.brand=JSON.parse(JSON.stringify(curTeam().brand));
-  t.sport=sportOf(curTeam());
+  t.sport=sportOf(curTeam()); if(curTeam().formation) t.formation=curTeam().formation;
   T.teams.push(t); switchTo(t.id);
   $('setup').open=true; const n=$('teamName'); n.focus(); n.select();
   $('setup').scrollIntoView({block:'start'});
@@ -595,8 +607,8 @@ const P=id=>S.players.find(p=>p.id===id);
 
 /* ---------- sports ----------
    Each team has a sport (team.sport). 'basic' is the original two-column layout (and the default for older data).
-   Rugby League puts players into named positions and can show them on a pitch. */
-const SPORTS={basic:'Basic',rl:'Rugby League'};
+   Rugby League and Football put players into named positions and can show them on a pitch. */
+const SPORTS={basic:'Basic',rl:'Rugby League',soccer:'Football (Soccer)'};
 // Listed in the order the coach reads them; r/c/w place each one on the pitch (12-column grid, attacking up the screen).
 const RL_POS=[
   {id:'dh',name:'Dummy Half',ab:'DH',bib:'pink',r:1,c:5,w:4},
@@ -611,22 +623,100 @@ const RL_POS=[
   {id:'re',name:'Right Edge',ab:'RE',r:2,c:9,w:4},
   {id:'fb',name:'Fullback',ab:'FB',r:5,c:5,w:4},
 ];
-const POS=id=>RL_POS.find(x=>x.id===id);
-const posName=id=>(POS(id)||{name:'?'}).name;
+/* ---------- football formations ----------
+   A formation is written defence-to-attack (the goalkeeper is extra), e.g. '4-4-2'. Each team keeps its own
+   (team.formation); the number of players on the field follows it. Grouped by side size for junior football. */
+const FORMATIONS=[
+  {size:11,list:[['4-4-2'],['4-4-1-1'],['4-1-2-1-2','diamond'],['4-2-2-2','box'],['4-3-3'],['4-1-2-3','4-3-3 holding mid'],['4-2-1-3','4-3-3 attacking mid'],
+    ['4-2-3-1'],['4-1-4-1'],['4-5-1'],['4-3-2-1','Christmas tree'],['4-3-1-2'],['4-1-3-2'],['4-2-4'],
+    ['3-5-2'],['3-4-3'],['3-4-1-2'],['3-4-2-1'],['3-1-4-2'],['3-1-2-1-3','3-4-3 diamond'],
+    ['5-3-2'],['5-4-1'],['5-2-3'],['3-2-2-3','WM'],['2-3-5','pyramid']]},
+  {size:9,list:[['3-3-2'],['3-2-3'],['2-4-2'],['3-4-1'],['4-3-1'],['2-3-3'],['3-1-3-1']]},
+  {size:7,list:[['2-3-1'],['3-2-1'],['2-1-2-1','diamond'],['3-1-2'],['1-3-2'],['2-2-2'],['3-3']]},
+  {size:5,list:[['2-2'],['1-2-1','diamond'],['2-1-1'],['1-1-2'],['3-1']]},
+];
+const DEF_FORMATION='4-4-2';
+const F_NAMES={GK:'Goalkeeper',CB:'Centre Back',LB:'Left Back',RB:'Right Back',LCB:'Left Centre Back',RCB:'Right Centre Back',LWB:'Left Wing Back',RWB:'Right Wing Back',
+  DM:'Defensive Mid',LDM:'Left Defensive Mid',RDM:'Right Defensive Mid',CM:'Centre Mid',LCM:'Left Centre Mid',RCM:'Right Centre Mid',LM:'Left Mid',RM:'Right Mid',
+  CAM:'Attacking Mid',LAM:'Left Attacking Mid',RAM:'Right Attacking Mid',ST:'Striker',LS:'Left Striker',RS:'Right Striker',LW:'Left Wing',RW:'Right Wing',
+  LIF:'Left Inside Forward',RIF:'Right Inside Forward'};
+// Where n players in one line sit on the 24-column pitch: [start columns], width.
+const F_SPREAD={1:[[9],8],2:[[3,15],8],3:[[1,9,17],8],4:[[1,7,13,19],6],5:[[1,6,11,16,21],4]};
+function lineRoles(n,kind,next){
+  if(kind==='def') return [[],['CB'],['LB','RB'],['LCB','CB','RCB'],['LB','LCB','RCB','RB'],['LWB','LCB','CB','RCB','RWB']][n];
+  if(kind==='att') return [[],['ST'],['LS','RS'],['LW','ST','RW'],['LW','LS','RS','RW'],['LW','LIF','ST','RIF','RW']][n];
+  if(n===4) return ['LM','LCM','RCM','RM'];
+  if(n===5) return ['LM','LCM','CM','RCM','RM'];
+  if(kind==='deep'&&n<3) return n===1?['DM']:['LDM','RDM'];
+  if(kind==='top'&&n===1) return ['CAM'];
+  if(kind==='top'&&n===2) return next>=3?['LCM','RCM']:['LAM','RAM'];
+  if(kind==='top'&&n===3) return ['LAM','CAM','RAM'];
+  return n===1?['CM']:n===2?['LCM','RCM']:['LCM','CM','RCM'];
+}
+const formationCache={};
+/* Positions for a formation, goalkeeper first then defence to attack, each with its place on the pitch. */
+function formationPositions(fid){
+  if(formationCache[fid]) return formationCache[fid];
+  const lines=fid.split('-').map(Number), L=lines.length, out=[];
+  const add=(ab,r,c,w,narrow)=>out.push({id:'f-'+ab.toLowerCase(),name:F_NAMES[ab],ab,r,c,w,narrow,bib:ab==='GK'?'yellow':undefined});
+  add('GK',L+1,9,8,false);
+  lines.forEach((n,i)=>{
+    const kind=i===0?'def':i===L-1?'att':L===3?'mid':i===1?'deep':i===L-2?'top':'mid';
+    const roles=lineRoles(n,kind,lines[i+1]||0), [cols,w]=F_SPREAD[n];
+    roles.forEach((ab,k)=>add(ab,L-i,cols[k],w,n>=5));
+  });
+  return formationCache[fid]=out;
+}
+const formationOf=t=>{const f=t&&t.formation;return FORMATIONS.some(g=>g.list.some(x=>x[0]===f))?f:DEF_FORMATION};
+const formationLabel=f=>{for(const g of FORMATIONS) for(const x of g.list) if(x[0]===f) return x[1]?`${f} (${x[1]})`:f; return f};
+const formationOptions=()=>FORMATIONS.map(g=>`<optgroup label="${g.size}-a-side">`+g.list.map(x=>`<option value="${x[0]}">${formationLabel(x[0])}</option>`).join('')+'</optgroup>').join('');
+// Every position any sport or formation can use, so the substitution log can always name one.
+const ALL_POS={};
+RL_POS.forEach(x=>ALL_POS[x.id]=x);
+FORMATIONS.forEach(g=>g.list.forEach(x=>formationPositions(x[0]).forEach(ps=>{ALL_POS[ps.id]=ps})));
+
 const sportOf=t=>SPORTS[t&&t.sport]?t.sport:'basic';
 const isRL=()=>sportOf(curTeam())==='rl';
-const fieldView=()=>isRL()&&curTeam().fieldView!==false;
+const isSoccer=()=>sportOf(curTeam())==='soccer';
+const hasPos=()=>isRL()||isSoccer();
+const posList=()=>isSoccer()?formationPositions(formationOf(curTeam())):RL_POS;
+const POS=id=>posList().find(x=>x.id===id);
+const posName=id=>(POS(id)||ALL_POS[id]||{name:'?'}).name;
+const subWord=()=>isSoccer()?'substitution':'interchange';
+const fieldView=()=>hasPos()&&curTeam().fieldView!==false;
+/* New formation: players keep any position that still exists; the rest move to the nearest free position. */
+function remapPositions(oldList,newList){
+  const ids=new Set(newList.map(x=>x.id)), used=new Set(), move=[];
+  const spot=(ps,list)=>[(ps.c+ps.w/2)/24,ps.r/Math.max(...list.map(x=>x.r))];
+  for(const p of S.players.filter(q=>q.on)){
+    if(p.pos&&ids.has(p.pos)&&!used.has(p.pos)) used.add(p.pos); else move.push(p);
+  }
+  for(const p of move){
+    const was=oldList.find(x=>x.id===p.pos), free=newList.filter(x=>!used.has(x.id));
+    if(!free.length){delete p.pos;continue}
+    let best=free[0];
+    if(was){const [x0,y0]=spot(was,oldList);let bd=1e9;for(const f of free){const [x,y]=spot(f,newList),d=(x-x0)**2+(y-y0)**2;if(d<bd){bd=d;best=f}}}
+    p.pos=best.id; used.add(best.id);
+  }
+}
+function setFormation(fid){
+  const t=curTeam(), before=posList(), from=formationOf(t);
+  t.formation=fid; const after=posList();
+  if(isSoccer()&&from!==fid) remapPositions(before,after);
+  S.cfg.onField=after.length;
+}
 const occupant=pos=>S.players.find(p=>p.on&&p.pos===pos);
 const posBadge=(ps,full)=>`<span class="pos${ps.bib?' bib-'+ps.bib:''}">${full?ps.name:ps.ab}</span>`;
 /* Every on-field player gets a distinct position; bench players have none. Fills gaps in list order. */
 function ensurePositions(){
-  if(!isRL()){let ch=false;S.players.forEach(p=>{if('pos' in p){delete p.pos;ch=true}});return ch}
+  if(!hasPos()){let ch=false;S.players.forEach(p=>{if('pos' in p){delete p.pos;ch=true}});return ch}
   let ch=false; const used=new Set(), need=[];
   for(const p of S.players){
     if(!p.on){if('pos' in p){delete p.pos;ch=true}continue}
     if(p.pos&&POS(p.pos)&&!used.has(p.pos)) used.add(p.pos); else need.push(p);
   }
-  for(const p of need){const free=RL_POS.find(x=>!used.has(x.id)); if(!free){if(p.pos){delete p.pos;ch=true}continue} p.pos=free.id; used.add(free.id); ch=true}
+  const list=posList();
+  for(const p of need){const free=list.find(x=>!used.has(x.id)); if(!free){if(p.pos){delete p.pos;ch=true}continue} p.pos=free.id; used.add(free.id); ch=true}
   return ch;
 }
 
@@ -666,12 +756,14 @@ function offSince(pid,h){const iv=intervals(pid,h).find(i=>i.open);return iv?iv.
 let lastAction=null;
 function renderPlayers(){
   if(ensurePositions()) save();
-  const rl=isRL(), fv=fieldView();
+  const rl=hasPos(), fv=fieldView(), sw=subWord();
   document.querySelector('.sides').classList.toggle('fieldview',fv);
-  $('viewSeg').hidden=!rl; $('viewSeg').querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.view==='field')===fv)));
+  $('viewBar').hidden=!rl; $('viewSeg').querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.view==='field')===fv)));
+  const fs=$('formSel'); fs.hidden=!isSoccer();
+  if(isSoccer()){if(!fs.options.length) fs.innerHTML=formationOptions(); fs.value=formationOf(curTeam())}
   $('sideHint').textContent=rl
-    ?(fv?'Tap a player or an empty position to make an interchange. Drag a bench player onto a position to swap them on, or drag between positions to move players around. Green means they\u2019ve had a rest this half.'
-        :'Tap a player to interchange them or change their position, or drag one onto a player in the other column to swap them. Longest on and longest off are at the top. Green means they\u2019ve had a rest this half.')
+    ?(fv?`Tap a player or an empty position to make a ${sw}. Drag a bench player onto a position to swap them on, or drag between positions to move players around. Green means they\u2019ve had a rest this half.`
+        :`Tap a player to make a ${sw} or change their position, or drag one onto a player in the other column to swap them. Longest on and longest off are at the top. Green means they\u2019ve had a rest this half.`)
     :'Tap a player to move them, or drag one onto a player in the other column to swap them. Longest on and longest off are at the top. Green means they\'ve had a rest this half.';
   const on=S.players.filter(p=>p.on), off=S.players.filter(p=>!p.on);
   off.sort((a,b)=>offSince(a.id,S.p)-offSince(b.id,S.p)||a.num-b.num);
@@ -686,21 +778,24 @@ function renderPlayers(){
 }
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function chip(p,on){
-  const ps=on&&isRL()&&POS(p.pos);
+  const ps=on&&hasPos()&&POS(p.pos);
   return `<button class="chip" data-pid="${p.id}" aria-label="${esc(p.name)} ${ps?ps.name+', ':''}${on?'on field, tap to take off':'off, tap to put on'}">
     <span class="num">${esc(p.num)}</span><span class="nm">${ps?posBadge(ps)+' ':''}${esc(p.name)}</span>
     <span class="tag" data-t="${p.id}"></span></button>`;
 }
-/* Rugby League field view: positions laid out like a pre-game TV team graphic. */
+/* Field view: positions laid out like a pre-game TV team graphic. */
 function pitch(){
-  const slots=RL_POS.map(ps=>{
+  const soccer=isSoccer(), sw=subWord();
+  const slots=posList().map(ps=>{
     const p=occupant(ps.id), st=`grid-column:${ps.c}/span ${ps.w};grid-row:${ps.r}`;
     return p
-      ?`<button class="chip slot" data-pid="${p.id}" data-pos="${ps.id}" style="${st}" aria-label="${esc(ps.name)}: ${esc(p.name)}, tap to interchange">${posBadge(ps,true)}<span class="snm"><b>${esc(p.num)}</b> ${esc(p.name)}</span><span class="tag" data-t="${p.id}" data-c="slot"></span></button>`
-      :`<button class="slot empty" data-pos="${ps.id}" style="${st}" aria-label="${esc(ps.name)} is empty, tap to put a player on">${posBadge(ps,true)}<span class="snm">Empty</span></button>`;
+      ?`<button class="chip slot" data-pid="${p.id}" data-pos="${ps.id}" style="${st}" aria-label="${esc(ps.name)}: ${esc(p.name)}, tap to make a ${sw}">${posBadge(ps,!ps.narrow)}<span class="snm"><b>${esc(p.num)}</b> ${esc(p.name)}</span><span class="tag" data-t="${p.id}" data-c="slot"></span></button>`
+      :`<button class="slot empty" data-pos="${ps.id}" style="${st}" aria-label="${esc(ps.name)} is empty, tap to put a player on">${posBadge(ps,!ps.narrow)}<span class="snm">Empty</span></button>`;
   }).join('');
   const loose=S.players.filter(p=>p.on&&!p.pos);
-  return `<div class="pitch"><div class="tryline">Try line</div><div class="slots">${slots}</div></div>`
+  return (soccer
+      ?`<div class="pitch soccer"><div class="tryline">Attacking this way</div><div class="mk box top"></div><div class="mk circle"></div><div class="mk box bot"></div><div class="slots g24">${slots}</div></div>`
+      :`<div class="pitch"><div class="tryline">Try line</div><div class="slots">${slots}</div></div>`)
     +(loose.length?`<p class="hint" style="margin:6px 0 4px">On the field with no position left (more players on than positions):</p><div class="grid">${loose.map(p=>chip(p,true)).join('')}</div>`:'');
 }
 function updateTimers(){
@@ -719,7 +814,7 @@ function updateTimers(){
 let suppressClick=false;
 function onTap(e){
   if(suppressClick){suppressClick=false;return}
-  if(isRL()){
+  if(hasPos()){
     if(S.finished) return;
     const sl=e.target.closest('.slot.empty'); if(sl){openSheet({pos:sl.dataset.pos});return}
     const c=e.target.closest('[data-pid]'); if(!c) return;
@@ -745,7 +840,7 @@ $('undoBtn').addEventListener('click',()=>{
 /* ---------- drag to swap ---------- */
 function swapPlayers(aId,bId){
   const a=P(aId), b=P(bId); if(!a||!b||a.on===b.on) return;
-  if(isRL()){rlSwap(a.on?a.id:b.id,a.on?b.id:a.id);return}
+  if(hasPos()){rlSwap(a.on?a.id:b.id,a.on?b.id:a.id);return}
   const off=a.on?a:b, on=a.on?b:a, t=now(), g='g'+Date.now();
   off.on=false; on.on=true;
   S.events.push({pid:off.id,h:S.p,t,type:'off',g},{pid:on.id,h:S.p,t,type:'on',g});
@@ -753,7 +848,7 @@ function swapPlayers(aId,bId){
   save(); renderAll();
 }
 function movePlayer(id){
-  if(isRL()){const q=P(id); if(q.on) rlTakeOff(id); else openSheet({on:id}); return}
+  if(hasPos()){const q=P(id); if(q.on) rlTakeOff(id); else openSheet({on:id}); return}
   const p=P(id), t=now(); p.on=!p.on;
   S.events.push({pid:p.id,h:S.p,t,type:p.on?'on':'off'});
   lastAction=`${p.name} ${p.on?'back on':'off'} at ${fmt(t)}`;
@@ -797,17 +892,17 @@ function renderSheet(){
   let title='', hint='', html='';
   if(m.on){
     const p=P(m.on); title=`Put #${esc(p.num)} ${esc(p.name)} on at…`;
-    html=RL_POS.map(ps=>{const q=occupant(ps.id);return row('pos:'+ps.id,posBadge(ps,true),q?`for ${who(q)} · ${onFor(q)}`:'Empty',q?'':'is-empty')}).join('');
+    html=posList().map(ps=>{const q=occupant(ps.id);return row('pos:'+ps.id,posBadge(ps,true),q?`for ${who(q)} · ${onFor(q)}`:'Empty',q?'':'is-empty')}).join('');
   }else if(m.off){
     const p=P(m.off), ps=POS(p.pos); title=`${ps?posBadge(ps,true)+' ':''}#${esc(p.num)} ${esc(p.name)}`;
     const b=benchOrder();
-    hint=b.length?'Interchange with:':'Nobody is on the bench.';
+    hint=b.length?(isSoccer()?'Substitute with:':'Interchange with:'):'Nobody is on the bench.';
     html=b.map(q=>row('swap:'+q.id,who(q),offFor(q))).join('')
       +row('move','Move to another position','Swap positions with a teammate','is-alt')
       +row('takeoff','Take off without a replacement',ps?`Leaves ${esc(ps.name)} empty`:'','is-alt');
   }else if(m.move){
     const p=P(m.move); title=`Move #${esc(p.num)} ${esc(p.name)} to…`;
-    html=RL_POS.filter(ps=>ps.id!==p.pos).map(ps=>{const q=occupant(ps.id);return row('to:'+ps.id,posBadge(ps,true),q?`${who(q)} goes to ${esc(posName(p.pos))}`:'Empty',q?'':'is-empty')}).join('');
+    html=posList().filter(ps=>ps.id!==p.pos).map(ps=>{const q=occupant(ps.id);return row('to:'+ps.id,posBadge(ps,true),q?`${who(q)} goes to ${esc(posName(p.pos))}`:'Empty',q?'':'is-empty')}).join('');
   }else if(m.pos){
     const ps=POS(m.pos); title=`${posBadge(ps,true)} is empty`;
     const b=benchOrder(), f=S.players.filter(q=>q.on);
@@ -832,6 +927,7 @@ $('sheetList').addEventListener('click',e=>{
 });
 $('sheetCancel').addEventListener('click',closeSheet);
 $('sheet').addEventListener('click',e=>{if(e.target===$('sheet')) closeSheet()});
+$('formSel').addEventListener('change',e=>{closeSheet(); setFormation(e.target.value); lastAction=null; save(); renderAll(); fillSetup()});
 $('viewSeg').addEventListener('click',e=>{const b=e.target.closest('[data-view]'); if(!b) return; curTeam().fieldView=b.dataset.view==='field'; save(); renderPlayers()});
 
 let drag=null;
@@ -854,7 +950,7 @@ function moveGhost(x,y){
   const under=document.elementFromPoint(x,y); if(!under) return;
   const chipEl=under.closest('.chip[data-pid]'), col=under.closest('#field,#bench');
   const fromCol=d.el.closest('#field,#bench');
-  const slot=isRL()&&under.closest('.slot[data-pos]');
+  const slot=hasPos()&&under.closest('.slot[data-pos]');
   if(slot&&slot!==d.el){
     slot.classList.add('drop-target');
     if(P(d.id).on) d.move=slot.dataset.pos;              // between positions
@@ -998,13 +1094,23 @@ function fillSetup(){
   fillBrand();
   $('teamName').value=curTeam().name||'';
   $('cfgLen').value=S.cfg.len; $('cfgPeriods').value=S.cfg.periods; $('cfgOn').value=S.cfg.onField;
-  $('cfgSport').value=sportOf(curTeam()); sportInputs();
+  $('cfgSport').value=sportOf(curTeam());
+  if(!$('cfgFormation').options.length) $('cfgFormation').innerHTML=formationOptions();
+  $('cfgFormation').value=formationOf(curTeam()); sportInputs();
   $('roster').value=S.players.map(p=>p.num+' '+p.name).join('\n');
   $('rosterNote').textContent=(S.example?'This is an example squad, replace it with yours. ':'')+'One player per line: number then name, e.g. “7 Mia”.';
 }
-/* Rugby League always has one player per position on the field. */
-function sportInputs(){const rl=$('cfgSport').value==='rl', o=$('cfgOn'); if(rl) o.value=RL_POS.length; else if(o.disabled) o.value=S.cfg.onField; o.disabled=rl}
+/* Rugby League and Football have one player per position, so players on field follows the sport or formation. */
+function sportInputs(){
+  const sp=$('cfgSport').value, o=$('cfgOn'), fixed=sp==='rl'||sp==='soccer';
+  $('cfgFormationLabel').hidden=sp!=='soccer';
+  if(sp==='rl') o.value=RL_POS.length;
+  else if(sp==='soccer') o.value=formationPositions($('cfgFormation').value).length;
+  else if(o.disabled) o.value=S.cfg.onField;
+  o.disabled=fixed;
+}
 $('cfgSport').addEventListener('change',sportInputs);
+$('cfgFormation').addEventListener('change',sportInputs);
 function parseRoster(){
   return $('roster').value.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{
     const m=l.match(/^#?(\d+)\s*[.\-–:)]?\s*(.+)$/); return m?{num:+m[1],name:m[2].trim()}:{num:0,name:l};
@@ -1013,8 +1119,9 @@ function parseRoster(){
 $('applyBtn').addEventListener('click',()=>{
   const len=Math.max(1,Math.min(60,+$('cfgLen').value||20));
   const periods=+$('cfgPeriods').value===4?4:2;
-  const sport=$('cfgSport').value==='rl'?'rl':'basic';
-  const onField=sport==='rl'?RL_POS.length:Math.max(1,Math.min(30,+$('cfgOn').value||7));
+  const sport=SPORTS[$('cfgSport').value]?$('cfgSport').value:'basic';
+  const formation=$('cfgFormation').value;
+  const onField=sport==='rl'?RL_POS.length:sport==='soccer'?formationPositions(formation).length:Math.max(1,Math.min(30,+$('cfgOn').value||7));
   const rows=parseRoster();
   const kept=[];
   rows.forEach((r,i)=>{
@@ -1033,8 +1140,9 @@ $('applyBtn').addEventListener('click',()=>{
   S.events=S.events.filter(e=>ids.has(e.pid));
   if(periods<=S.p) S.cfg.periods=S.p+1; else S.cfg.periods=periods;
   curTeam().name=$('teamName').value.trim()||curTeam().name||'My team';
-  curTeam().sport=sport;
   S.cfg.len=len; S.cfg.onField=onField; S.players=kept; S.example=false;
+  if(sport==='soccer'){const was=sportOf(curTeam()); curTeam().sport=sport; if(was==='soccer') setFormation(formation); else curTeam().formation=formation}
+  else curTeam().sport=sport;
   save(); renderAll(); fillSetup();
   $('applyBtn').textContent='Saved'; setTimeout(()=>$('applyBtn').textContent='Save setup',1500);
 });

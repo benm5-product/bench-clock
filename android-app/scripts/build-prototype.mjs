@@ -1,6 +1,6 @@
 // Builds the claude.ai prototype page from the shared web app (repo root index.html), so the
 // prototype link always shows the same app as the iPhone and Android versions.
-// Fonts are embedded, the offline cache is switched off (artifact pages can't use it) and two demo
+// Fonts are embedded, the offline cache is switched off (artifact pages can't use it) and three demo
 // teams are added the first time someone opens it. Run from android-app/:  npm run prototype
 // Output: android-app/dist/bench-clock-prototype.html (not committed). Republish it to
 // https://claude.ai/artifact/7ACmbZ2rKaem1VdY1qWYtB after every change (see CLAUDE.md).
@@ -30,17 +30,27 @@ const body = html.slice(html.indexOf('<body>') + 6, html.lastIndexOf('</body>'))
 const headStyles = head.match(/<style>[\s\S]*?<\/style>/g) || [];
 
 const seed = `<script>
-/* Prototype only: two demo teams the first time this page is opened. */
+/* Prototype only: three demo teams the first time this page is opened. */
 (function(){
   try{
     if(localStorage.getItem('bench-clock-teams-v1')) return;
     const names=[[1,'Archie'],[2,'Mason'],[3,'Lachie'],[4,'Ruby'],[5,'Kai'],[6,'Isla'],[7,'Hudson'],[8,'Zara'],[9,'Cooper'],[10,'Mia'],[11,'Jack'],[12,'Ava'],[13,'Leo'],[14,'Noah'],[15,'Evie']];
     const st=(list,onField)=>({cfg:{len:20,periods:2,onField},players:list.map(([n,name],i)=>({id:'p'+i,num:n,name,on:i<onField})),example:false,p:0,acc:0,runStart:null,halfEnd:[],events:[],finished:false});
     const basic=[[3,'Mia'],[5,'Jack'],[7,'Ava'],[8,'Leo'],[10,'Isla'],[11,'Noah'],[12,'Zara'],[14,'Oscar'],[21,'Ruby']];
+    // Football team playing 4-4-2, 14 minutes into the first half with one substitution made.
+    const fc=[[1,'Sam'],[2,'Olivia'],[3,'Ethan'],[4,'Chloe'],[5,'Liam'],[6,'Grace'],[7,'Lucas'],[8,'Ella'],[9,'Max'],[10,'Sophie'],[11,'Henry'],[12,'Amelia'],[13,'Oliver'],[14,'Matilda'],[15,'Jasper']];
+    const pos442=['f-gk','f-lb','f-lcb','f-rcb','f-rb','f-lm','f-lcm','f-rcm','f-rm','f-ls','f-rs'];
+    const soccer=st(fc,11);
+    soccer.players.forEach((p,i)=>{if(i<11) p.pos=pos442[i]});
+    soccer.acc=14*60000+20000;
+    // Sophie (Left Striker) came off for Amelia at 8:00.
+    soccer.players[9].on=false; delete soccer.players[9].pos; soccer.players[11].on=true; soccer.players[11].pos='f-ls';
+    soccer.events.push({pid:'p9',h:0,t:480000,type:'off',pos:'f-ls',g:'g1'},{pid:'p11',h:0,t:480000,type:'on',pos:'f-ls',g:'g1'});
     localStorage.setItem('bench-clock-teams-v1',JSON.stringify({teams:[
+      {id:'demo-soccer',name:'Under 12s Football',sport:'soccer',formation:'4-4-2',brand:{primary:'#1d3f8a',secondary:['#d62828','#ffffff'],logo:null},state:soccer},
       {id:'demo-rl',name:'Under 10s Rugby League',sport:'rl',state:st(names,11)},
       {id:'demo-basic',name:'Basic team',sport:'basic',state:st(basic,7)}
-    ],cur:'demo-rl',updatedAt:1}));
+    ],cur:'demo-soccer',updatedAt:1}));
   }catch(e){}
 })();
 </script>
