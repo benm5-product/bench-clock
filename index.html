@@ -358,7 +358,7 @@ main{padding-bottom:calc(96px + var(--sa-bottom))}
       <label>Sport<select id="cfgSport"><option value="basic">Basic</option><option value="rl">Rugby League</option><option value="soccer">Football (Soccer)</option><option value="bball">Basketball</option></select></label>
       <label id="cfgFormationLabel" hidden><span id="cfgFormationWord">Formation</span><select id="cfgFormation"></select></label>
       <label>Periods<select id="cfgPeriods"><option value="2">2 halves</option><option value="4">4 quarters</option></select></label>
-      <label>Players on field<input id="cfgOn" type="number" min="1" max="30" inputmode="numeric"></label>
+      <label><span id="cfgOnWord">Players on field</span><input id="cfgOn" type="number" min="1" max="30" inputmode="numeric"></label>
     </div>
     <textarea id="roster" aria-label="Squad list" spellcheck="false"></textarea>
     <p class="note" id="rosterNote">One player per line: number then name, e.g. “7 Mia”.</p>
@@ -806,6 +806,7 @@ const posList=()=>{const sp=sportOf(curTeam());return SYSTEMS[sp]?SYSTEMS[sp].po
 const POS=id=>posList().find(x=>x.id===id);
 const posName=id=>(POS(id)||ALL_POS[id]||{name:'?'}).name;
 const subWord=()=>isRL()?'interchange':'substitution';
+const ground=()=>isBball()?'court':'field'; // basketball is played on a court
 const fieldView=()=>hasPos()&&curTeam().fieldView!==false;
 /* New formation: players keep any position that still exists; the rest move to the nearest free position. */
 function remapPositions(oldList,newList){
@@ -891,10 +892,10 @@ function renderPlayers(){
   const on=S.players.filter(p=>p.on), off=S.players.filter(p=>!p.on);
   off.sort((a,b)=>offSince(a.id,S.p)-offSince(b.id,S.p)||a.num-b.num);
   on.sort((a,b)=>lastOn(a.id,S.p)-lastOn(b.id,S.p)||a.num-b.num);
-  $('field').innerHTML=fv?pitch():on.length?on.map(p=>chip(p,true)).join(''):(S.players.length?'<div class="empty">Nobody on the field.</div>':'<div class="empty">No players yet. Add your squad in Team &amp; game setup below.</div>');
-  $('bench').innerHTML=off.length?off.map(p=>chip(p,false)).join(''):'<div class="empty">Everyone is on the field.</div>';
+  $('field').innerHTML=fv?pitch():on.length?on.map(p=>chip(p,true)).join(''):(S.players.length?`<div class="empty">Nobody on the ${ground()}.</div>`:'<div class="empty">No players yet. Add your squad in Team &amp; game setup below.</div>');
+  $('bench').innerHTML=off.length?off.map(p=>chip(p,false)).join(''):`<div class="empty">Everyone is on the ${ground()}.</div>`;
   const t=S.cfg.onField, c=on.length;
-  $('onLabel').textContent=isBball()?'On court':'On field';
+  $('onLabel').textContent='On '+ground();
   $('onCount').textContent=c+'/'+t+(c>t?' too many':c<t?' short':'');
   $('onCount').className='count'+(c!==t?' warn':'');
   $('offCount').textContent=off.length?String(off.length):'';
@@ -903,7 +904,7 @@ function renderPlayers(){
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function chip(p,on){
   const ps=on&&hasPos()&&POS(p.pos);
-  return `<button class="chip" data-pid="${p.id}" aria-label="${esc(p.name)} ${ps?ps.name+', ':''}${on?'on field, tap to take off':'off, tap to put on'}">
+  return `<button class="chip" data-pid="${p.id}" aria-label="${esc(p.name)} ${ps?ps.name+', ':''}${on?`on ${ground()}, tap to take off`:'off, tap to put on'}">
     <span class="num">${esc(p.num)}</span><span class="nm">${ps?posBadge(ps)+' ':''}${esc(p.name)}</span>
     <span class="tag" data-t="${p.id}"></span></button>`;
 }
@@ -923,7 +924,7 @@ function pitch(){
       :soccer
       ?`<div class="pitch soccer"><div class="tryline">Attacking this way</div><div class="mk box top"></div><div class="mk circle"></div><div class="mk box bot"></div><div class="slots" style="--rows:${rows}">${slots}</div></div>`
       :`<div class="pitch"><div class="tryline">Try line</div><div class="slots" style="--rows:${rows}">${slots}</div></div>`)
-    +(loose.length?`<p class="hint" style="margin:6px 0 4px">On the field with no position left (more players on than positions):</p><div class="grid">${loose.map(p=>chip(p,true)).join('')}</div>`:'');
+    +(loose.length?`<p class="hint" style="margin:6px 0 4px">On the ${ground()} with no position left (more players on than positions):</p><div class="grid">${loose.map(p=>chip(p,true)).join('')}</div>`:'');
 }
 function updateTimers(){
   const n=now();
@@ -1236,6 +1237,7 @@ function sportInputs(){
     if(cf.dataset.sport!==sp){cf.innerHTML=systemOptions(sp);cf.dataset.sport=sp;cf.value=systemOf(curTeam(),sp)}
     $('cfgFormationWord').textContent=sys.word;
   }
+  $('cfgOnWord').textContent=sp==='bball'?'Players on court':'Players on field';
   if(sp==='rl') o.value=RL_POS.length;
   else if(sys) o.value=systemSize(sp,cf.value);
   else if(o.disabled) o.value=S.cfg.onField;
