@@ -156,6 +156,62 @@ await page.waitForTimeout(150);
 await page.screenshot({ path: `${SHOTS}/iphone-07-football-442-dark.png` });
 await page.emulateMedia({ colorScheme: 'light' });
 
+console.log('Basketball team with systems, on a court');
+await tab('team');
+await page.selectOption('#cfgSport', 'bball');
+check((await page.textContent('#cfgFormationWord')) === 'System' && (await page.$eval('#cfgFormation', s => s.value)) === 'bb-5out', 'system choice appears, 5-out motion by default');
+check(await page.$eval('#cfgOn', i => i.disabled && i.value === '5'), 'players on court follows the system (5)');
+await page.fill('#roster', Array.from({ length: 10 }, (_, i) => `${i + 4} Hoop${i + 1}`).join('\n'));
+await page.click('#applyBtn');
+await page.click('#resetBtn'); await page.click('#resetBtn');
+await tab('bench');
+check(await page.isVisible('.pitch.court .courtlines') && (await page.$$('.pitch.court .slot')).length === 5, 'court drawn with 5 positions');
+check(/Attacking this basket/.test(await page.textContent('.pitch.court .tryline')), 'offence systems attack the basket');
+check((await page.$eval('#formSel', s => s.getAttribute('aria-label'))) === 'System', 'system selector beside Field | List');
+const bbPos = async () => Object.fromEntries((await stored()).teams[0].state.players.filter(p => p.on).map(p => [p.name, p.pos]));
+const roles = await bbPos();
+check(roles.Hoop1 === 'b-pg' && roles.Hoop5 === 'b-c', 'squad placed Point Guard through Centre');
+const systems = await page.$$eval('#formSel optgroup', gs => gs.flatMap(g => [...g.querySelectorAll('option')].map(o => [o.value, /3x3/.test(g.label) ? 3 : 5])));
+let bbBad = []; const bbSizes = new Set();
+for (const [sid, size] of systems) {
+  await page.selectOption('#formSel', sid);
+  const r = await page.$$eval('.pitch.court .slot', els => ({
+    ids: els.map(e => e.dataset.pos),
+    boxes: els.map(e => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; }),
+    court: (() => { const b = document.querySelector('.pitch.court .slots').getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom]; })(),
+    wide: document.documentElement.scrollWidth > innerWidth }));
+  r.boxes.forEach(b => bbSizes.add(Math.round(b[2] - b[0]) + 'x' + Math.round(b[3] - b[1])));
+  const overlap = r.boxes.some((a, i) => r.boxes.some((b, j) => i < j && a[0] < b[2] - 1 && b[0] < a[2] - 1 && a[1] < b[3] - 1 && b[1] < a[3] - 1));
+  const outside = r.boxes.some(b => b[0] < r.court[0] - 1 || b[2] > r.court[2] + 1 || b[1] < r.court[1] - 1 || b[3] > r.court[3] + 1);
+  if (r.ids.length !== size || new Set(r.ids).size !== size || overlap || outside || r.wide) bbBad.push(sid);
+}
+check(bbSizes.size === 1, `every basketball tile is the same size (${[...bbSizes].join(', ')})`);
+check(systems.length >= 25 && bbBad.length === 0, `all ${systems.length} systems lay out on the court${bbBad.length ? ' (problems: ' + bbBad.join(', ') + ')' : ''}`);
+await page.selectOption('#formSel', 'bb-5out');
+const before5 = await bbPos();
+await page.selectOption('#formSel', 'bb-horns');
+check(JSON.stringify(await bbPos()) === JSON.stringify(before5), 'changing system keeps every player in their role');
+await page.selectOption('#formSel', 'bb-23zone');
+check(/Defending this basket/.test(await page.textContent('.pitch.court .tryline')), 'defence systems defend the basket');
+await page.selectOption('#formSel', 'bb-3out');
+check((await page.$$('.pitch.court .slot')).length === 3 && /too many/.test(await page.textContent('#onCount')), '3x3: 3 positions, and it warns 2 too many are on');
+await page.selectOption('#formSel', 'bb-horns');
+check((await page.$$('.pitch.court .slot.empty')).length === 0, 'back to 5 with every position filled');
+const centreBefore = (await stored()).teams[0].state.players.find(p => p.on && p.pos === 'b-c').name;
+await page.tap('.pitch.court .slot[data-pos="b-c"]');
+check(/Substitute with/.test(await page.textContent('#sheetHint')), 'basketball uses the word substitution');
+await page.tap('#sheetList [data-act^="swap:"] >> nth=0');
+const bbSub = (await stored()).teams[0].state.players.find(p => p.on && p.pos === 'b-c');
+check(bbSub && bbSub.name !== centreBefore && /Centre/.test(await page.textContent('#log')), `substitute now at Centre (${bbSub && bbSub.name}), log names it`);
+await page.tap('#undoBtn');
+check((await stored()).teams[0].state.players.find(p => p.pos === 'b-c').name === centreBefore, 'undo reverses the substitution');
+await page.evaluate(() => window.scrollTo(0, 0));
+await page.screenshot({ path: `${SHOTS}/iphone-10-basketball.png` });
+await page.emulateMedia({ colorScheme: 'dark' });
+await page.waitForTimeout(150);
+await page.screenshot({ path: `${SHOTS}/iphone-11-basketball-dark.png` });
+await page.emulateMedia({ colorScheme: 'light' });
+
 console.log('Backup: paste flow with two taps');
 await tab('settings');
 await page.click('#pasteToggle');
@@ -163,7 +219,7 @@ await page.fill('#pasteText', JSON.stringify({ app: 'bench-clock', version: 1, d
 await page.click('#pasteGo');
 check(/Replace my 1 team with 1 team/.test(await page.textContent('#importConfirm')), 'pasted backup checked');
 await page.click('#importConfirm');
-check((await stored()).teams[0].sport === 'soccer', 'first tap does not replace');
+check((await stored()).teams[0].sport === 'bball', 'first tap does not replace');
 await page.click('#importConfirm');
 check((await stored()).teams[0].name === 'Saved Sharks' && !(await stored()).teams[0].sport, 'second tap restores the backup');
 

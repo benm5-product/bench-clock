@@ -1,6 +1,6 @@
 // Builds the claude.ai prototype page from the shared web app (repo root index.html), so the
 // prototype link always shows the same app as the iPhone and Android versions.
-// Fonts are embedded, the offline cache is switched off (artifact pages can't use it) and three demo
+// Fonts are embedded, the offline cache is switched off (artifact pages can't use it) and four demo
 // teams are added the first time someone opens it. Run from android-app/:  npm run prototype
 // Output: android-app/dist/bench-clock-prototype.html (not committed). Republish it to
 // https://claude.ai/artifact/7ACmbZ2rKaem1VdY1qWYtB after every change (see CLAUDE.md).
@@ -30,13 +30,13 @@ const body = html.slice(html.indexOf('<body>') + 6, html.lastIndexOf('</body>'))
 const headStyles = head.match(/<style>[\s\S]*?<\/style>/g) || [];
 
 const seed = `<script>
-/* Prototype only: three demo teams the first time this page is opened. A browser that already has the
-   older demo teams (no football team) gets the football demo team added in front of them. */
+/* Prototype only: four demo teams the first time this page is opened. A browser that already has some of
+   the demo teams gets any missing ones added in front. Real (non-demo) teams are never touched. */
 (function(){
   try{
     let saved=null; try{saved=JSON.parse(localStorage.getItem('bench-clock-teams-v1')||'null')}catch(e){}
     const ids=saved&&Array.isArray(saved.teams)?saved.teams.map(t=>t.id):null;
-    if(ids&&(!ids.includes('demo-rl')||ids.includes('demo-soccer'))) return;
+    if(ids&&!ids.includes('demo-rl')) return;
     const names=[[1,'Archie'],[2,'Mason'],[3,'Lachie'],[4,'Ruby'],[5,'Kai'],[6,'Isla'],[7,'Hudson'],[8,'Zara'],[9,'Cooper'],[10,'Mia'],[11,'Jack'],[12,'Ava'],[13,'Leo'],[14,'Noah'],[15,'Evie']];
     const st=(list,onField)=>({cfg:{len:20,periods:2,onField},players:list.map(([n,name],i)=>({id:'p'+i,num:n,name,on:i<onField})),example:false,p:0,acc:0,runStart:null,halfEnd:[],events:[],finished:false});
     const basic=[[3,'Mia'],[5,'Jack'],[7,'Ava'],[8,'Leo'],[10,'Isla'],[11,'Noah'],[12,'Zara'],[14,'Oscar'],[21,'Ruby']];
@@ -50,9 +50,20 @@ const seed = `<script>
     soccer.players[9].on=false; delete soccer.players[9].pos; soccer.players[11].on=true; soccer.players[11].pos='f-ls';
     soccer.events.push({pid:'p9',h:0,t:480000,type:'off',pos:'f-ls',g:'g1'},{pid:'p11',h:0,t:480000,type:'on',pos:'f-ls',g:'g1'});
     const football={id:'demo-soccer',name:'Under 12s Football',sport:'soccer',formation:'4-4-2',brand:{primary:'#1d3f8a',secondary:['#d62828','#ffffff'],logo:null},state:soccer};
+    // Basketball team running Horns, 6:30 into the first quarter with one substitution made.
+    const hoops=[[4,'Zoe'],[5,'Ari'],[6,'Billie'],[7,'Theo'],[8,'Nina'],[9,'Jai'],[10,'Remy'],[11,'Lola'],[12,'Finn'],[13,'Ivy']];
+    const bb=st(hoops,5); bb.cfg={len:10,periods:4,onField:5};
+    ['b-pg','b-sg','b-sf','b-pf','b-c'].forEach((pos,i)=>{bb.players[i].pos=pos});
+    bb.acc=6*60000+30000;
+    // Nina (Centre) came off for Lola at 4:00.
+    bb.players[4].on=false; delete bb.players[4].pos; bb.players[7].on=true; bb.players[7].pos='b-c';
+    bb.events.push({pid:'p4',h:0,t:240000,type:'off',pos:'b-c',g:'g1'},{pid:'p7',h:0,t:240000,type:'on',pos:'b-c',g:'g1'});
+    const basketball={id:'demo-bball',name:'Under 14s Basketball',sport:'bball',formation:'bb-horns',brand:{primary:'#6d1a2a',secondary:['#f2b134','#ffffff'],logo:null},state:bb};
+    const add=[basketball,football].filter(t=>!(ids&&ids.includes(t.id)));
+    if(ids&&!add.length) return;
     const data=ids
-      ?{...saved,teams:[football,...saved.teams],cur:'demo-soccer'}
-      :{teams:[football,{id:'demo-rl',name:'Under 10s Rugby League',sport:'rl',state:st(names,11)},{id:'demo-basic',name:'Basic team',sport:'basic',state:st(basic,7)}],cur:'demo-soccer',updatedAt:1};
+      ?{...saved,teams:[...add,...saved.teams],cur:add[0].id}
+      :{teams:[basketball,football,{id:'demo-rl',name:'Under 10s Rugby League',sport:'rl',state:st(names,11)},{id:'demo-basic',name:'Basic team',sport:'basic',state:st(basic,7)}],cur:'demo-bball',updatedAt:1};
     localStorage.setItem('bench-clock-teams-v1',JSON.stringify(data));
   }catch(e){}
 })();
