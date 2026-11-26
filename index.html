@@ -232,6 +232,12 @@ textarea{width:100%;min-height:170px;margin-top:12px;font-variant-numeric:tabula
 .courtlines .ln{fill:none;stroke:var(--courtline);stroke-width:2px}
 .courtlines .ln *{vector-effect:non-scaling-stroke}
 .courtlines .paint{fill:var(--paint)}
+/* The hoop stands out from the floor lines: white backboard, orange rim and bracket, white net */
+.courtlines .hoop *{vector-effect:non-scaling-stroke}
+.courtlines .board{fill:#fff;stroke:rgba(0,0,0,.5);stroke-width:1px}
+.courtlines .rim{fill:none;stroke:#ff5a1f;stroke-width:3px}
+.courtlines .neck{fill:none;stroke:#ff5a1f;stroke-width:3px}
+.courtlines .net{fill:none;stroke:rgba(255,255,255,.95);stroke-width:1px}
 .pitch.soccer::after{top:calc(50% + 12px);border-top-style:solid}
 .mk{position:absolute;border:2px solid var(--chalkline);pointer-events:none}
 .mk.box{left:28%;right:28%;height:44px}
@@ -773,7 +779,7 @@ function bballPositions(sid){
   return bballCache[sid]=out;
 }
 const bballSide=sid=>{for(const g of BB_SYSTEMS) if(g.list.some(x=>x[0]===sid)) return g.side; return 'att'};
-const COURT_SVG=`<svg class="courtlines" viewBox="0 0 50 47" preserveAspectRatio="none" aria-hidden="true"><rect class="paint" x="17" y="0" width="16" height="19"/><g class="ln"><rect x="0" y="0" width="50" height="47"/><rect x="17" y="0" width="16" height="19"/><circle cx="25" cy="19" r="6"/><path d="M3 0V14.2A23.75 23.75 0 0 0 47 14.2V0"/><path d="M21 5.25A4 4 0 0 0 29 5.25"/><path d="M22 4H28"/><circle cx="25" cy="5.25" r=".75"/><path d="M19 47A6 6 0 0 1 31 47"/></g></svg>`;
+const COURT_SVG=`<svg class="courtlines" viewBox="0 0 50 47" preserveAspectRatio="none" aria-hidden="true"><rect class="paint" x="17" y="0" width="16" height="19"/><g class="ln"><rect x="0" y="0" width="50" height="47"/><rect x="17" y="0" width="16" height="19"/><circle cx="25" cy="19" r="6"/><path d="M3 0V14.2A23.75 23.75 0 0 0 47 14.2V0"/><path d="M21 5.25A4 4 0 0 0 29 5.25"/><path d="M19 47A6 6 0 0 1 31 47"/></g><g class="hoop"><path class="neck" d="M25 4.1V4.3"/><path class="net" d="M23.9 5.6L24.4 7.5H25.6L26.1 5.6M24.6 5.9L24.9 7.5M25.4 5.9L25.1 7.5M24.2 6.6H25.8"/><ellipse class="rim" cx="25" cy="5.3" rx="1.1" ry="1"/><rect class="board" x="22" y="3.4" width="6" height=".7"/></g></svg>`;
 
 /* Sports with a choice of system: Football formations and Basketball systems share one selector. */
 const SYSTEMS={
